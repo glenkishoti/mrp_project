@@ -1,6 +1,8 @@
 package at.fhtw.mrp;
 
 import at.fhtw.mrp.http.UserHandler;
+import at.fhtw.mrp.http.MediaHandler;
+import at.fhtw.mrp.http.RatingHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
@@ -10,6 +12,9 @@ public class Main {
     public static void main(String[] args) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
         server.createContext("/api/users", new UserHandler());
+        server.createContext("/api/media", new MediaHandler());
+        server.createContext("/api/ratings", new RatingHandler());   // PUT/DELETE on ratings
+
         //The server will create/manage worker threads itself from its built-in thread pool;
         server.setExecutor(null); // default executor
         server.start();
