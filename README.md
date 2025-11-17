@@ -1,136 +1,119 @@
 # **# MRP – Media Ratings Platform**
 
+Small HTTP server in **Java 21** using only the JDK `HttpServer`.  
+Persistence: PostgreSQL (Docker). JSON via Jackson.
 
+All IDs use **UUID**.  
+Architecture follows SOLID: Handlers → Services → Repositories → Database.
 
-Small HTTP server in \*\*Java 21\*\* using only the JDK `HttpServer` (no Spring/JSP/ASP).  
-
-Persistence: PostgreSQL (Docker). JSON: Jackson.
-
-### 
+---
 
 ### **## Run**
 
-
-
 #### **- Start DB (Docker):**
-
-&nbsp; docker compose up -d
-
-&nbsp; docker compose ps
-
-
+```
+docker compose up -d
+docker compose ps
+```
 
 #### **- Apply schema (first time):**
 
-&nbsp; psql inside container loads files in db/init/\*.sql automatically on first run.
+All SQL is in `db/init/`.
 
-&nbsp; If you added 002\_media.sql later:
+When the container starts for the first time, it auto-loads all `*.sql`.
 
-&nbsp;   docker cp db/init/002\_media.sql mrp\_postgres:/tmp/002\_media.sql
+If you add new scripts later:
 
-&nbsp;   docker exec -it mrp\_postgres psql -U mrp\_user -d mrp\_db -f /tmp/002\_media.sql
+```
+docker cp db/init/001_schema.sql mrp_postgres:/tmp/schema.sql
+docker exec -it mrp_postgres psql -U mrp_user -d mrp_db -f /tmp/schema.sql
+```
 
+---
 
+#### **- Start server**
+```
+mvn clean compile
+mvn package
+java -cp target/classes at.fhtw.mrp.Main
+```
 
-#### **- Start server:**
+Server will print:
 
-&nbsp; mvn clean compile
+```
+MRP server running at http://localhost:8080
+```
 
-&nbsp; Run `Main` from IntelliJ, or:
-
-&nbsp; mvn package
-
-&nbsp; java -cp target/classes at.fhtw.mrp.Main
-
-
-
-Server prints: `MRP server running at http://localhost:8080`
-
-
+---
 
 ### **## Endpoints**
 
-### 
+### **### Users**
+```
+POST /api/users/register
+POST /api/users/login
+GET  /api/users/profile (requires Bearer token)
+```
 
-#### **### Users**
+### **### Media**
+```
+GET    /api/media?query=term
+POST   /api/media
+GET    /api/media/{id}
+PUT    /api/media/{id}
+DELETE /api/media/{id}
+```
 
-\- POST /api/users/register  – `{ "username", "password" }` → 201
+### **### Ratings**
+```
+GET    /api/media/{id}/ratings
+POST   /api/media/{id}/ratings
+DELETE /api/ratings/{ratingId}
+```
 
-\- POST /api/users/login     – `{ "Username", "Password" }` → `{ "token": "..." }`
+All create/update/delete operations require **Authorization: Bearer <token>**.
 
-&nbsp; Send token as `Authorization: Bearer <token>` on protected routes.
+---
 
+### **## Postman**
 
+Environment variables:
 
-#### **### Media**
+```
+baseUrl = http://localhost:8080
+token   = <filled after login>
+```
 
-\- GET  /api/media?query=term          – list (filter by title)
+Collection includes:
 
-\- POST /api/media                     – create (auth)
-
-\- GET  /api/media/{id}                – get one + average score
-
-\- PUT  /api/media/{id}                – update (owner only)
-
-\- DELETE /api/media/{id}              – delete (owner only)
-
-
-
-#### **### Ratings**
-
-\- GET  /api/media/{id}/ratings        – list ratings for media
-
-\- POST /api/media/{id}/ratings        – create rating (auth)
-
-\- PUT  /api/ratings/{ratingId}        – update own rating
-
-\- DELETE /api/ratings/{ratingId}      – delete own rating
-
-
-
-#### **## Postman**
-
-Environment:
-
-\- baseUrl = http://localhost:8080
-
-\- token   = (filled by login)
+1. Register  
+2. Login  
+3. Media CRUD  
+4. Ratings  
 
 
+---
 
-Collection includes Register → Login → Media CRUD → Ratings.
+### **## Tech Stack & Structure**
 
+- **config**: AppConfig (env → JDBC)  
+- **db**: Database (JDBC)  
+- **model**: User, MediaEntry, Rating  
+- **repo**: IUserRepository, IMediaRepository, IRatingRepository (+ implementations)  
+- **service**: IAuthService, IMediaService, IRatingService (+ implementations)  
+- **http**: UserHandler, MediaHandler, RatingHandler  
+- **util**: PasswordUtil (PBKDF2), TokenService (Bearer tokens)  
 
+---
 
-### **## Tech Stack \& Structure**
+### **## API & Tests**
 
-\- config: AppConfig (env → JDBC URL)
+- Postman collection: `postman/MRP_Postman_Collection.json`
+- curl demo: `scripts/demo.sh` (Linux/Mac) & `scripts/demo.cmd` (Windows)
 
-\- db: Database (JDBC connection)
-
-\- model: User, MediaEntry, Rating
-
-\- repo: UserRepository, MediaRepository, RatingRepository (JDBC)
-
-\- service: AuthService, MediaService, RatingService (business rules)
-
-\- http: UserHandler, MediaHandler, RatingHandler (routing + JSON)
-
-\- util: PasswordUtil (PBKDF2), TokenService
-
-
-
-### **## API \& Tests**
-
-\- Postman collection: `postman/MRP\_Postman\_Collection.json`
-
-\- cURL demo: `scripts/demo.sh` / `scripts/demo.cmd`
-
-
+---
 
 ### **## GitHub**
 
-Repo: https://github.com/glenkishoti/mrp\_project.git   ← update after first push
-
-
+Repo: https://github.com/glenkishoti/mrp_project.git  
 

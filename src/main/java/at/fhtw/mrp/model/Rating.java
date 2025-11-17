@@ -1,27 +1,39 @@
 package at.fhtw.mrp.model;
 
-import java.time.Instant;
+import java.util.UUID;
 
 public class Rating {
-    private final int id;
-    private final int mediaId;
-    private final int userId;
+    private final UUID id;
+    private final UUID mediaId;
+    private final UUID userId;
     private final int stars;
     private final String comment;
-    private final boolean commentConfirmed;
-    private final Instant createdAt;
 
-    public Rating(int id, int mediaId, int userId, int stars, String comment,
-                  boolean commentConfirmed, Instant createdAt) {
-        this.id = id; this.mediaId = mediaId; this.userId = userId;
-        this.stars = stars; this.comment = comment; this.commentConfirmed = commentConfirmed; this.createdAt = createdAt;
+    public Rating(UUID id, UUID mediaId, UUID userId, int stars, String comment) {
+        this.id = id;
+        this.mediaId = mediaId;
+        this.userId = userId;
+        this.stars = stars;
+        this.comment = comment;
     }
 
-    public int getId() { return id; }
-    public int getMediaId() { return mediaId; }
-    public int getUserId() { return userId; }
-    public int getStars() { return stars; }
-    public String getComment() { return comment; }
-    public boolean isCommentConfirmed() { return commentConfirmed; }
-    public Instant getCreatedAt() { return createdAt; }
+    public UUID getId() {
+        return id;
+    }
+
+    public UUID getMediaId() {
+        return mediaId;
+    }
+
+    public UUID getUserId() {
+        return userId;
+    }
+
+    public int getStars() {
+        return stars;
+    }
+
+    public String getComment() {
+        return comment;
+    }
 }

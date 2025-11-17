@@ -4,7 +4,6 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import java.security.SecureRandom;
 import java.util.Base64;
-import java.util.Arrays;
 
 public final class PasswordUtil {
 
@@ -14,12 +13,23 @@ public final class PasswordUtil {
     private static final int ITERATIONS = 65_536;
     private static final int KEY_LEN = 256;
 
+    // --- NEW METHODS (for AuthService compatibility) ---
+    public static String hashPassword(String password) {
+        return hash(password.toCharArray());
+    }
+
+    public static boolean verifyPassword(String password, String storedHash) {
+        return verify(password.toCharArray(), storedHash);
+    }
+
+    // --- ORIGINAL PBKDF2 IMPLEMENTATION ---
     public static String hash(char[] password) {
         byte[] salt = new byte[SALT_LEN];
         new SecureRandom().nextBytes(salt);
         byte[] hash = pbkdf2(password, salt, ITERATIONS, KEY_LEN);
-        // store: iterations:salt:hash (all Base64)
-        return ITERATIONS + ":" + Base64.getEncoder().encodeToString(salt) + ":" +
+
+        return ITERATIONS + ":" +
+                Base64.getEncoder().encodeToString(salt) + ":" +
                 Base64.getEncoder().encodeToString(hash);
     }
 
@@ -28,6 +38,7 @@ public final class PasswordUtil {
         int iters = Integer.parseInt(parts[0]);
         byte[] salt = Base64.getDecoder().decode(parts[1]);
         byte[] expected = Base64.getDecoder().decode(parts[2]);
+
         byte[] actual = pbkdf2(password, salt, iters, expected.length * 8);
         return slowEquals(expected, actual);
     }
@@ -35,7 +46,9 @@ public final class PasswordUtil {
     private static byte[] pbkdf2(char[] password, byte[] salt, int iterations, int keyLenBits) {
         try {
             PBEKeySpec spec = new PBEKeySpec(password, salt, iterations, keyLenBits);
-            return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).getEncoded();
+            return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+                    .generateSecret(spec)
+                    .getEncoded();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -47,5 +60,4 @@ public final class PasswordUtil {
         for (int i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
         return diff == 0;
     }
-
 }

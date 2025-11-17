@@ -1,28 +1,37 @@
 package at.fhtw.mrp.model;
 
+import java.util.UUID;
+
 public class User {
-    private int id;
-    private String username;
-    private String passwordHash;
-    private String token;
+    private final UUID id;
+    private final String username;
+    private final String passwordHash;
+    private final String token;   // nullable
 
-    public User() {}
-
-    public User(int id, String username, String passwordHash, String token) {
+    public User(UUID id, String username, String passwordHash, String token) {
         this.id = id;
         this.username = username;
         this.passwordHash = passwordHash;
         this.token = token;
     }
 
-    // getters and setters
-    public int getId() { return id; }
-    public String getUsername() { return username; }
-    public String getPasswordHash() { return passwordHash; }
-    public String getToken() { return token; }
+    public UUID getId() {
+        return id;
+    }
 
-    public void setId(int id) { this.id = id; }
-    public void setUsername(String username) { this.username = username; }
-    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
-    public void setToken(String token) { this.token = token; }
+    public String getUsername() {
+        return username;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public String getToken() {
+        return token;
+    }
+
+    public User withToken(String newToken) {
+        return new User(id, username, passwordHash, newToken);
+    }
 }

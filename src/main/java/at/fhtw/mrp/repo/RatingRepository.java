@@ -4,84 +4,91 @@ import at.fhtw.mrp.db.Database;
 import at.fhtw.mrp.model.Rating;
 
 import java.sql.*;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
-public class RatingRepository {
+public class RatingRepository implements IRatingRepository {
 
-    public int insert(int mediaId, int userId, int stars, String comment) throws SQLException {
+    private Rating mapRow(ResultSet rs) throws SQLException {
+        return new Rating(
+                rs.getObject("id", UUID.class),
+                rs.getObject("media_id", UUID.class),
+                rs.getObject("user_id", UUID.class),
+                rs.getInt("stars"),
+                rs.getString("comment")
+        );
+    }
+
+    @Override
+    public void insert(Rating rating) throws SQLException {
         String sql = """
-          INSERT INTO ratings(media_id, user_id, stars, comment)
-          VALUES (?,?,?,?) RETURNING id
-        """;
+                INSERT INTO ratings (id, media_id, user_id, stars, comment)
+                VALUES (?, ?, ?, ?, ?)
+                """;
         try (Connection c = Database.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setInt(1, mediaId);
-            ps.setInt(2, userId);
-            ps.setInt(3, stars);
-            ps.setString(4, comment);
-            try (ResultSet rs = ps.executeQuery()) { rs.next(); return rs.getInt(1); }
+            ps.setObject(1, rating.getId());
+            ps.setObject(2, rating.getMediaId());
+            ps.setObject(3, rating.getUserId());
+            ps.setInt(4, rating.getStars());
+            ps.setString(5, rating.getComment());
+            ps.executeUpdate();
         }
     }
 
-    public Optional<Rating> findById(int id) throws SQLException {
-        String sql = "SELECT id, media_id, user_id, stars, comment, comment_confirmed, created_at FROM ratings WHERE id=?";
+    @Override
+    public Optional<Rating> findById(UUID id) throws SQLException {
+        String sql = "SELECT * FROM ratings WHERE id = ?";
         try (Connection c = Database.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setInt(1, id);
+            ps.setObject(1, id);
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return Optional.of(map(rs));
+                if (rs.next()) return Optional.of(mapRow(rs));
                 return Optional.empty();
             }
         }
     }
 
-    public List<Rating> listByMedia(int mediaId) throws SQLException {
-        String sql = "SELECT id, media_id, user_id, stars, comment, comment_confirmed, created_at FROM ratings WHERE media_id=? ORDER BY created_at DESC";
+    @Override
+    public List<Rating> listByMedia(UUID mediaId) throws SQLException {
+        String sql = "SELECT * FROM ratings WHERE media_id = ? ORDER BY created_at DESC";
+        List<Rating> out = new ArrayList<>();
         try (Connection c = Database.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setInt(1, mediaId);
+            ps.setObject(1, mediaId);
             try (ResultSet rs = ps.executeQuery()) {
-                List<Rating> list = new ArrayList<>();
-                while (rs.next()) list.add(map(rs));
-                return list;
+                while (rs.next()) out.add(mapRow(rs));
             }
         }
+        return out;
     }
 
-    public int update(int id, int userId, int stars, String comment, Boolean confirm) throws SQLException {
-        String sql = "UPDATE ratings SET stars=?, comment=?, comment_confirmed=COALESCE(?, comment_confirmed) WHERE id=? AND user_id=?";
+    @Override
+    public List<Rating> listByUser(UUID userId) throws SQLException {
+        String sql = "SELECT * FROM ratings WHERE user_id = ? ORDER BY created_at DESC";
+        List<Rating> out = new ArrayList<>();
         try (Connection c = Database.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setInt(1, stars);
-            ps.setString(2, comment);
-            if (confirm == null) ps.setNull(3, Types.BOOLEAN); else ps.setBoolean(3, confirm);
-            ps.setInt(4, id);
-            ps.setInt(5, userId);
-            return ps.executeUpdate();
+            ps.setObject(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) out.add(mapRow(rs));
+            }
         }
+        return out;
     }
 
-    public int delete(int id, int userId) throws SQLException {
+    @Override
+    public void delete(UUID ratingId) throws SQLException {
+        String sql = "DELETE FROM ratings WHERE id = ?";
         try (Connection c = Database.getConnection();
-             PreparedStatement ps = c.prepareStatement("DELETE FROM ratings WHERE id=? AND user_id=?")) {
-            ps.setInt(1, id);
-            ps.setInt(2, userId);
-            return ps.executeUpdate();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setObject(1, ratingId);
+            int rows = ps.executeUpdate();
+            if (rows == 0) {
+                throw new IllegalArgumentException("Rating not found");
+            }
         }
-    }
-
-    private Rating map(ResultSet rs) throws SQLException {
-        return new Rating(
-                rs.getInt("id"),
-                rs.getInt("media_id"),
-                rs.getInt("user_id"),
-                rs.getInt("stars"),
-                rs.getString("comment"),
-                rs.getBoolean("comment_confirmed"),
-                rs.getTimestamp("created_at").toInstant()
-        );
     }
 }
