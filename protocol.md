@@ -476,6 +476,8 @@ Test flows:
 
 **Dynamic User Support**: The collection now works for ANY user, not just Alice. Simply login with different credentials and all subsequent requests use that user's context.
 
+
+
 ---
 
 ## Problems & Solutions
@@ -675,6 +677,37 @@ Commit history shows:
 - Step 4: Added 20 Unit Tests
 - Step 5: Added new features: edit ratings, search media by title, filter media, sort results, user stats
 - Step 6: Added Comment requiring confirmation functionality + last touches
+
+---
+
+## Lessons Learned
+
+### Technical Insights
+
+**Interface Design Challenges**
+Initially attempted to create a single universal interface (`IRepository<T, ID>`) with generics, but Java's type erasure and variance rules made this impractical. Learned to use simple template interfaces with `Object` return types and explicit casting at call sites, accepting `UnsupportedOperationException` for inapplicable methods as a pragmatic trade-off.
+
+**Path Parsing Pitfalls**
+Encountered a subtle but critical bug where `path.split("/")` creates an empty first element for paths starting with `/`. This caused UUID extraction to read from the wrong array index (`parts[2]` instead of `parts[3]`), resulting in "Invalid UUID string" errors. The fix required updating all handlers to account for the empty element.
+
+**Mock Configuration for Tests**
+Discovered that Mockito's `doNothing()` doesn't simulate side effects like setting IDs on entities. Tests failed because `insert()` didn't set the rating ID. Solution: use `doAnswer()` to explicitly set the ID on the mocked entity, properly simulating database behavior.
+
+### Architectural Decisions
+
+**Comment Approval Implementation**
+Added `approval_status` column to ratings table rather than creating a separate moderation table. This simplified the schema and made queries more efficient, though it couples rating and approval concerns. For this project's scale, the trade-off was worthwhile.
+
+**Standalone Handlers vs BaseHandler**
+Moved away from inheritance-based `BaseHandler` to standalone handlers with embedded helper methods. While this introduced some code duplication, it eliminated complex constructor chains and made each handler independently testable and maintainable.
+
+### Time Management
+
+**Feature Prioritization**
+Focused on completing core CRUD operations and essential features (ratings, favorites, search/filter) before attempting advanced features. This ensured a solid foundation worth 36/44 points before tackling the comment approval system for additional 2 points.
+
+**Testing Strategy**
+Writing 20 unit tests early in development caught validation bugs and interface issues before they propagated. The upfront investment in test setup paid off by preventing regression bugs during the comment approval feature addition.
 
 ---
 
