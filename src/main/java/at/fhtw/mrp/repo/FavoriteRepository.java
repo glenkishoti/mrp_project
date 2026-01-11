@@ -142,7 +142,7 @@ public class FavoriteRepository implements IRepository {
         throw new UnsupportedOperationException("findByString not supported for Favorite");
     }
 
-    // === HELPER METHODS (not from interface) ===
+    // HELPER METHODS (not from interface)
 
     public void addFavorite(UUID userId, UUID mediaId) throws SQLException {
         String sql = """

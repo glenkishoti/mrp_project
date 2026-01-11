@@ -17,6 +17,7 @@ import static org.mockito.Mockito.*;
 /**
  * Unit tests for RatingService
  * Tests validation logic and business rules
+ * FIXED: Mock insert() to set ID on rating object
  */
 class RatingServiceTest {
 
@@ -40,7 +41,12 @@ class RatingServiceTest {
         int validStars = 4;
         String comment = "Great movie!";
 
-        doNothing().when(ratingRepository).insert(any());
+        // FIXED: Mock insert to set the ID on the rating
+        doAnswer(invocation -> {
+            Rating rating = invocation.getArgument(0);
+            rating.setId(UUID.randomUUID());
+            return null;
+        }).when(ratingRepository).insert(any());
 
         // Act & Assert - should not throw exception
         assertDoesNotThrow(() -> {
@@ -101,7 +107,12 @@ class RatingServiceTest {
         UUID userId = UUID.randomUUID();
         int validStars = 5;
 
-        doNothing().when(ratingRepository).insert(any());
+        // FIXED: Mock insert to set the ID on the rating
+        doAnswer(invocation -> {
+            Rating rating = invocation.getArgument(0);
+            rating.setId(UUID.randomUUID());
+            return null;
+        }).when(ratingRepository).insert(any());
 
         // Act & Assert - should not throw exception
         assertDoesNotThrow(() -> {
@@ -121,7 +132,12 @@ class RatingServiceTest {
         int validStars = 3;
         String emptyComment = "";
 
-        doNothing().when(ratingRepository).insert(any());
+        // FIXED: Mock insert to set the ID on the rating
+        doAnswer(invocation -> {
+            Rating rating = invocation.getArgument(0);
+            rating.setId(UUID.randomUUID());
+            return null;
+        }).when(ratingRepository).insert(any());
 
         // Act & Assert - should not throw exception
         assertDoesNotThrow(() -> {

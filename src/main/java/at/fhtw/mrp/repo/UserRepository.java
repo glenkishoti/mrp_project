@@ -133,7 +133,7 @@ public class UserRepository implements IRepository {
         }
     }
 
-    // === HELPER METHODS (not from interface) ===
+    // HELPER METHODS (not from interface)
 
     public Optional<User> findByUsername(String username) throws SQLException {
         String sql = "SELECT id, username, password_hash, token FROM users WHERE username = ?";

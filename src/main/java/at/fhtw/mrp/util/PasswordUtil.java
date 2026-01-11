@@ -13,7 +13,7 @@ public final class PasswordUtil {
     private static final int ITERATIONS = 65_536;
     private static final int KEY_LEN = 256;
 
-    // --- NEW METHODS (for AuthService compatibility) ---
+    // METHODS for AuthService compatibility)
     public static String hashPassword(String password) {
         return hash(password.toCharArray());
     }
@@ -22,7 +22,7 @@ public final class PasswordUtil {
         return verify(password.toCharArray(), storedHash);
     }
 
-    // --- ORIGINAL PBKDF2 IMPLEMENTATION ---
+    // ORIGINAL PBKDF2 IMPLEMENTATION
     public static String hash(char[] password) {
         byte[] salt = new byte[SALT_LEN];
         new SecureRandom().nextBytes(salt);

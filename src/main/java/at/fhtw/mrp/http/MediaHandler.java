@@ -21,7 +21,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Standalone Media Handler - NO BaseHandler dependency
+ * Media Handler
  * Supports: Filtering, Sorting, Search
  */
 public class MediaHandler implements HttpHandler {
@@ -30,10 +30,9 @@ public class MediaHandler implements HttpHandler {
     private final UserRepository userRepository = new UserRepository();
     private final ObjectMapper mapper = new ObjectMapper();
 
-    // Constructor matching your Main.java signature
+    // Constructor
     public MediaHandler(MediaService mediaService, Object ratingService, Object authService) {
         this.mediaService = mediaService;
-        // Ignore the extra parameters - they're not needed for the new features
     }
 
     @Override
@@ -211,12 +210,12 @@ public class MediaHandler implements HttpHandler {
         }
 
         String[] parts = path.split("/");
-        if (parts.length < 4) {  // Changed from 3 to 4
+        if (parts.length < 4) {
             sendResponse(exchange, 400, Map.of("error", "Media ID required"));
             return;
         }
 
-        UUID mediaId = UUID.fromString(parts[3]);  // Changed from parts[2] to parts[3]
+        UUID mediaId = UUID.fromString(parts[3]);
         Map<String, Object> body = parseRequestBody(exchange);
         mediaService.updateFromRequest(mediaId, userOpt.get(), body);
 
@@ -231,12 +230,12 @@ public class MediaHandler implements HttpHandler {
         }
 
         String[] parts = path.split("/");
-        if (parts.length < 4) {  // Changed from 3 to 4
+        if (parts.length < 4) {
             sendResponse(exchange, 400, Map.of("error", "Media ID required"));
             return;
         }
 
-        UUID mediaId = UUID.fromString(parts[3]);  // Changed from parts[2] to parts[3]
+        UUID mediaId = UUID.fromString(parts[3]);
         mediaService.delete(mediaId, userOpt.get());
 
         sendResponse(exchange, 200, Map.of("message", "Media deleted successfully"));

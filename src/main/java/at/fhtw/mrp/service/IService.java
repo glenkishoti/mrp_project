@@ -12,7 +12,7 @@ import java.util.UUID;
  */
 public interface IService {
 
-    // ===== CREATION OPERATIONS =====
+    // CREATION OPERATIONS
 
     /**
      * Create a new entity from request data
@@ -24,7 +24,7 @@ public interface IService {
      */
     UUID create(UUID userId, Map<String, Object> data) throws SQLException;
 
-    // ===== RETRIEVAL OPERATIONS =====
+    // RETRIEVAL OPERATIONS
 
     /**
      * Get an entity by its ID

@@ -21,10 +21,19 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Standalone Rating Handler - NO BaseHandler dependency
- * Supports: Create, Read, UPDATE, Delete
+ * Rating Handler with Comment Approval Support
  *
- * FIXED: Changed parts[2] to parts[3] for UUID extraction
+ * User Endpoints:
+ * - POST /api/ratings - Create rating (starts as pending)
+ * - GET /api/ratings - Get my ratings (including pending)
+ * - GET /api/ratings?mediaId={id} - Get approved ratings for media
+ * - PUT /api/ratings/{id} - Edit rating
+ * - DELETE /api/ratings/{id} - Delete rating
+ *
+ * Admin Endpoints:
+ * - GET /api/ratings/pending - Get all pending ratings
+ * - POST /api/ratings/{id}/approve - Approve rating
+ * - POST /api/ratings/{id}/reject - Reject rating
  */
 public class RatingHandler implements HttpHandler {
 
@@ -32,10 +41,8 @@ public class RatingHandler implements HttpHandler {
     private final UserRepository userRepository = new UserRepository();
     private final ObjectMapper mapper = new ObjectMapper();
 
-    // Constructor matching your Main.java signature
     public RatingHandler(RatingService ratingService, Object authService, Object userRepo) {
         this.ratingService = ratingService;
-        // Ignore the extra parameters - they're not needed for the new features
     }
 
     @Override
@@ -51,12 +58,22 @@ public class RatingHandler implements HttpHandler {
             }
             User user = userOpt.get();
 
-            switch (method) {
-                case "POST" -> handleCreate(exchange, user);
-                case "GET" -> handleList(exchange, user);
-                case "PUT" -> handleUpdate(exchange, user, path);
-                case "DELETE" -> handleDelete(exchange, user, path);
-                default -> sendResponse(exchange, 405, Map.of("error", "Method not allowed"));
+            // Route to appropriate handler
+            if (method.equals("GET") && path.endsWith("/pending")) {
+                handleGetPending(exchange);
+            } else if (method.equals("POST") && path.contains("/approve")) {
+                handleApprove(exchange, path);
+            } else if (method.equals("POST") && path.contains("/reject")) {
+                handleReject(exchange, path);
+            } else {
+                // Regular CRUD operations
+                switch (method) {
+                    case "POST" -> handleCreate(exchange, user);
+                    case "GET" -> handleList(exchange, user);
+                    case "PUT" -> handleUpdate(exchange, user, path);
+                    case "DELETE" -> handleDelete(exchange, user, path);
+                    default -> sendResponse(exchange, 405, Map.of("error", "Method not allowed"));
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -64,7 +81,6 @@ public class RatingHandler implements HttpHandler {
         }
     }
 
-    // Helper: Authenticate user from Bearer token
     private Optional<User> authenticateUser(HttpExchange exchange) {
         try {
             String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
@@ -78,7 +94,6 @@ public class RatingHandler implements HttpHandler {
         }
     }
 
-    // Helper: Parse JSON request body
     @SuppressWarnings("unchecked")
     private Map<String, Object> parseRequestBody(HttpExchange exchange) throws IOException {
         BufferedReader reader = new BufferedReader(new InputStreamReader(exchange.getRequestBody()));
@@ -91,7 +106,6 @@ public class RatingHandler implements HttpHandler {
         return mapper.readValue(body.toString(), Map.class);
     }
 
-    // Helper: Get single query parameter
     private String getQueryParam(HttpExchange exchange, String paramName) {
         String query = exchange.getRequestURI().getQuery();
         if (query == null) return null;
@@ -104,7 +118,6 @@ public class RatingHandler implements HttpHandler {
         return null;
     }
 
-    // Helper: Send JSON response
     private void sendResponse(HttpExchange exchange, int statusCode, Object data) throws IOException {
         String json = mapper.writeValueAsString(data);
         byte[] bytes = json.getBytes();
@@ -124,7 +137,11 @@ public class RatingHandler implements HttpHandler {
 
         UUID ratingId = ratingService.create(mediaId, user.getId(), stars, comment);
 
-        sendResponse(exchange, 201, Map.of("id", ratingId, "message", "Rating created successfully"));
+        sendResponse(exchange, 201, Map.of(
+                "id", ratingId,
+                "message", "Rating created successfully (pending approval)",
+                "status", "pending"
+        ));
     }
 
     private void handleList(HttpExchange exchange, User user) throws IOException, SQLException {
@@ -133,9 +150,12 @@ public class RatingHandler implements HttpHandler {
         List<Rating> ratings;
         if (mediaIdParam != null) {
             UUID mediaId = UUID.fromString(mediaIdParam);
-            ratings = ratingService.listByMedia(mediaId);
+            ratings = ratingService.listByMedia(mediaId); // Only approved
         } else {
-            ratings = ratingService.listByUser(user.getId());
+            // Cast from List<?> to List<Rating>
+            @SuppressWarnings("unchecked")
+            List<Rating> userRatings = (List<Rating>) ratingService.listByUser(user.getId());
+            ratings = userRatings;
         }
 
         sendResponse(exchange, 200, ratings);
@@ -143,40 +163,81 @@ public class RatingHandler implements HttpHandler {
 
     private void handleUpdate(HttpExchange exchange, User user, String path) throws IOException, SQLException {
         String[] parts = path.split("/");
-
-        // FIXED: Changed from parts.length < 3 to parts.length < 4
         if (parts.length < 4) {
             sendResponse(exchange, 400, Map.of("error", "Rating ID required"));
             return;
         }
 
-        // FIXED: Changed from parts[2] to parts[3]
-        // Path: /api/ratings/{uuid}
-        // parts[0] = ""
-        // parts[1] = "api"
-        // parts[2] = "ratings"
-        // parts[3] = uuid ← THIS IS WHERE THE UUID IS!
         UUID ratingId = UUID.fromString(parts[3]);
         Map<String, Object> body = parseRequestBody(exchange);
 
         ratingService.update(ratingId, user.getId(), body);
 
-        sendResponse(exchange, 200, Map.of("message", "Rating updated successfully", "id", ratingId));
+        sendResponse(exchange, 200, Map.of(
+                "message", "Rating updated successfully (pending approval if comment changed)",
+                "id", ratingId
+        ));
     }
 
     private void handleDelete(HttpExchange exchange, User user, String path) throws IOException, SQLException {
         String[] parts = path.split("/");
-
-        // FIXED: Changed from parts.length < 3 to parts.length < 4
         if (parts.length < 4) {
             sendResponse(exchange, 400, Map.of("error", "Rating ID required"));
             return;
         }
 
-        // FIXED: Changed from parts[2] to parts[3]
         UUID ratingId = UUID.fromString(parts[3]);
         ratingService.delete(ratingId, user.getId());
 
         sendResponse(exchange, 200, Map.of("message", "Rating deleted successfully"));
+    }
+
+    // ADMIN ENDPOINTS
+
+    private void handleGetPending(HttpExchange exchange) throws IOException, SQLException {
+        // For now, any authenticated user can see pending ratings
+
+        List<Rating> pendingRatings = ratingService.getPendingRatings();
+
+        sendResponse(exchange, 200, Map.of(
+                "total", pendingRatings.size(),
+                "ratings", pendingRatings
+        ));
+    }
+
+    private void handleApprove(HttpExchange exchange, String path) throws IOException, SQLException {
+
+        // Extract rating ID from path: /api/ratings/{id}/approve
+        String[] parts = path.split("/");
+        if (parts.length < 4) {
+            sendResponse(exchange, 400, Map.of("error", "Rating ID required"));
+            return;
+        }
+
+        UUID ratingId = UUID.fromString(parts[3]);
+        ratingService.approveRating(ratingId);
+
+        sendResponse(exchange, 200, Map.of(
+                "message", "Rating approved successfully",
+                "ratingId", ratingId
+        ));
+    }
+
+    private void handleReject(HttpExchange exchange, String path) throws IOException, SQLException {
+
+        // Extract rating ID from path: /api/ratings/{id}/reject
+        String[] parts = path.split("/");
+        if (parts.length < 4) {
+            sendResponse(exchange, 400, Map.of("error", "Rating ID required"));
+            return;
+        }
+
+        UUID ratingId = UUID.fromString(parts[3]);
+        ratingService.rejectRating(ratingId);
+
+        sendResponse(exchange, 200, Map.of(
+                "message", "Rating rejected successfully",
+                "ratingId", ratingId
+        ));
     }
 }

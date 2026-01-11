@@ -105,46 +105,58 @@ Architecture:
 ---
 
 ## Project Structure
-
 ```
 src/main/java/at/fhtw/mrp/
-├── Main.java                    # Application entry point with DI
+├── Main.java                      # Application entry point with DI
 │
 ├── config/
-│   └── AppConfig.java           # Environment configuration
+│   └── AppConfig.java             # Environment configuration
 │
 ├── db/
-│   └── Database.java            # JDBC connection management
+│   └── Database.java              # JDBC connection management
 │
 ├── model/
-│   ├── User.java                # User entity
-│   ├── MediaEntry.java          # Media entity
-│   ├── Rating.java              # Rating entity
-│   └── Favorite.java            # Favorite entity
+│   ├── User.java                  # User entity
+│   ├── MediaEntry.java            # Media entity
+│   ├── Rating.java                # Rating entity
+│   └── Favorite.java              # Favorite entity
 │
 ├── repo/
-│   ├── IRepository.java         # Single template interface
-│   ├── UserRepository.java      # Implements IRepository
-│   ├── MediaRepository.java     # Implements IRepository
-│   ├── RatingRepository.java    # Implements IRepository
-│   └── FavoriteRepository.java  # Implements IRepository
+│   ├── IRepository.java           # Single template interface
+│   ├── UserRepository.java        # Implements IRepository
+│   ├── MediaRepository.java       # Implements IRepository
+│   ├── RatingRepository.java      # Implements IRepository (with update())
+│   └── FavoriteRepository.java    # Implements IRepository
 │
 ├── service/
-│   ├── IService.java            # Single template interface
-│   ├── AuthService.java         # Implements IService
-│   ├── MediaService.java        # Implements IService
-│   ├── RatingService.java       # Implements IService
-│   └── FavoriteService.java     # Implements IService
+│   ├── IService.java              # Single template interface
+│   ├── AuthService.java           # Implements IService
+│   ├── MediaService.java          # Implements IService (with filter/sort/search)
+│   ├── RatingService.java         # Implements IService (with update())
+│   ├── FavoriteService.java       # Implements IService
+│   └── UserProfileService.java    # NEW: User statistics and activity
 │
 ├── http/
-│   ├── UserHandler.java         # User endpoints
-│   ├── MediaHandler.java        # Media endpoints
-│   ├── RatingHandler.java       # Rating endpoints
-│   └── FavoriteHandler.java     # Favorites endpoints
+│   ├── UserHandler.java           # User endpoints
+│   ├── MediaHandler.java          # Media endpoints (with filter/sort/search)
+│   ├── RatingHandler.java         # Rating endpoints (with PUT)
+│   ├── FavoriteHandler.java       # Favorites endpoints
+│   └── UserProfileHandler.java    # NEW: Profile & statistics endpoints
 │
 └── util/
-    ├── PasswordUtil.java        # PBKDF2 password hashing
-    └── TokenService.java        # Bearer token management
+    ├── PasswordUtil.java          # PBKDF2 password hashing
+    └── TokenService.java          # Bearer token management
+
+src/test/java/at/fhtw/mrp/
+├── service/
+│   ├── AuthServiceTest.java      # 4 tests (register, login, duplicate, invalid)
+│   ├── MediaServiceTest.java     # 5 tests (create, get, update, delete, ownership)
+│   ├── RatingServiceTest.java    # 5 tests (create, validate, list, delete, ownership)
+│   └── FavouriteServiceTest.java # 4 tests (add, list, check, remove)
+│
+└── util/
+    └── TokenServiceTest.java      # 2 tests (generate, authenticate)
+
 ```
 
 ---

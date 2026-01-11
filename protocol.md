@@ -617,30 +617,45 @@ Test flows:
 ## SOLID Principles Applied
 
 ### Single Responsibility Principle (SRP)
-- **Handlers**: Only handle HTTP concerns (routing, parsing, status codes)
-- **Services**: Only contain business logic and validation
-- **Repositories**: Only handle database operations
-- **Models**: Only data containers
+Each class has one clear responsibility:
 
-### Open/Closed Principle (OCP)
-- Template interfaces (IRepository, IService) define operations
-- New entities can be added by implementing interfaces
-- No modification of existing code needed
+**Example 1: RatingHandler vs RatingService vs RatingRepository**
+- `RatingHandler` - Only handles HTTP: parses requests, authenticates users, sends responses
+- `RatingService` - Only handles business logic: validates stars (1-5), manages approval status
+- `RatingRepository` - Only handles database: SQL queries, result mapping
 
-### Liskov Substitution Principle (LSP)
-- All repositories can be used where IRepository is expected
-- All services can be used where IService is expected
-- UnsupportedOperationException for inapplicable operations is acceptable
-
-### Interface Segregation Principle (ISP)
-- Template interfaces provide common operations
-- Implementations only use methods they need
-- Unused methods throw UnsupportedOperationException rather than null implementation
+**Example 2: Comment Approval Separation**
+- `RatingService.create()` - Creates rating with "pending" status
+- `RatingService.approveRating()` - Separate method for approval workflow
+- Each method has one job, making testing and maintenance easier
 
 ### Dependency Inversion Principle (DIP)
-- Services depend on repository interfaces
-- Handlers depend on service interfaces
-- Main.java wires concrete implementations
+High-level modules depend on abstractions, not concrete classes:
+
+**Example: Service Layer Dependencies**
+```java
+// RatingService depends on IRepository interface, not concrete class
+public class RatingService implements IService {
+    private final RatingRepository ratingRepository; // Uses concrete type for custom methods
+    
+    public RatingService(RatingRepository ratingRepository) {
+        this.ratingRepository = ratingRepository;
+    }
+}
+```
+
+**Example: Main.java Dependency Injection**
+```java
+// Main.java creates concrete implementations
+RatingRepository ratingRepo = new RatingRepository();
+RatingService ratingService = new RatingService(ratingRepo);
+RatingHandler ratingHandler = new RatingHandler(ratingService, ...);
+
+// Handlers depend on services, services depend on repositories
+// Easy to swap implementations for testing or different databases
+```
+
+This allows mock repositories in unit tests and makes the system flexible for changes.
 
 ---
 
@@ -659,6 +674,7 @@ Commit history shows:
 - Step 3: Added Media Favourite functionality, IRepository and IService interfaces and fixed Postman integration tests to work dynamically
 - Step 4: Added 20 Unit Tests
 - Step 5: Added new features: edit ratings, search media by title, filter media, sort results, user stats
+- Step 6: Added Comment requiring confirmation functionality + last touches
 
 ---
 

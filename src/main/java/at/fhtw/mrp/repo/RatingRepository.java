@@ -10,39 +10,30 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * PostgreSQL implementation of IRepository for Rating entities
- * NOW SUPPORTS UPDATE
+ * Repository for Rating with comment approval support
  */
 public class RatingRepository implements IRepository {
-
-    private Rating mapRow(ResultSet rs) throws SQLException {
-        return new Rating(
-                rs.getObject("id", UUID.class),
-                rs.getObject("media_id", UUID.class),
-                rs.getObject("user_id", UUID.class),
-                rs.getInt("stars"),
-                rs.getString("comment")
-        );
-    }
 
     @Override
     public void insert(Object entity) throws SQLException {
         Rating rating = (Rating) entity;
-        String sql = """
-                INSERT INTO ratings (id, media_id, user_id, stars, comment)
-                VALUES (?, ?, ?, ?, ?)
-                """;
+        String sql = "INSERT INTO ratings (id, media_id, user_id, stars, comment, approval_status) " +
+                "VALUES (?, ?, ?, ?, ?, ?)";
 
-        try (Connection c = Database.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
+        try (Connection conn = Database.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            ps.setObject(1, rating.getId());
-            ps.setObject(2, rating.getMediaId());
-            ps.setObject(3, rating.getUserId());
-            ps.setInt(4, rating.getStars());
-            ps.setString(5, rating.getComment());
+            UUID id = UUID.randomUUID();
+            stmt.setObject(1, id);
+            stmt.setObject(2, rating.getMediaId());
+            stmt.setObject(3, rating.getUserId());
+            stmt.setInt(4, rating.getStars());
+            stmt.setString(5, rating.getComment());
+            stmt.setString(6, "pending");
 
-            ps.executeUpdate();
+            stmt.executeUpdate();
+            rating.setId(id);
+            rating.setApprovalStatus("pending");
         }
     }
 
@@ -50,40 +41,32 @@ public class RatingRepository implements IRepository {
     public Optional<?> findById(UUID id) throws SQLException {
         String sql = "SELECT * FROM ratings WHERE id = ?";
 
-        try (Connection c = Database.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
+        try (Connection conn = Database.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            ps.setObject(1, id);
+            stmt.setObject(1, id);
+            ResultSet rs = stmt.executeQuery();
 
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return Optional.of(mapRow(rs));
-                return Optional.empty();
+            if (rs.next()) {
+                return Optional.of(mapResultSetToRating(rs));
             }
+            return Optional.empty();
         }
     }
 
     @Override
     public void update(Object entity) throws SQLException {
-        // ✅ NOW IMPLEMENTED - Update ratings
         Rating rating = (Rating) entity;
-        String sql = """
-                UPDATE ratings SET
-                    stars = ?,
-                    comment = ?
-                WHERE id = ?
-                """;
+        String sql = "UPDATE ratings SET stars = ?, comment = ?, approval_status = ? WHERE id = ?";
 
-        try (Connection c = Database.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
+        try (Connection conn = Database.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            ps.setInt(1, rating.getStars());
-            ps.setString(2, rating.getComment());
-            ps.setObject(3, rating.getId());
-
-            int rows = ps.executeUpdate();
-            if (rows == 0) {
-                throw new IllegalArgumentException("Rating not found");
-            }
+            stmt.setInt(1, rating.getStars());
+            stmt.setString(2, rating.getComment());
+            stmt.setString(3, rating.getApprovalStatus());
+            stmt.setObject(4, rating.getId());
+            stmt.executeUpdate();
         }
     }
 
@@ -91,110 +74,126 @@ public class RatingRepository implements IRepository {
     public void delete(UUID id) throws SQLException {
         String sql = "DELETE FROM ratings WHERE id = ?";
 
-        try (Connection c = Database.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
+        try (Connection conn = Database.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            ps.setObject(1, id);
-
-            int rows = ps.executeUpdate();
-
-            if (rows == 0) {
-                throw new IllegalArgumentException("Rating not found");
-            }
+            stmt.setObject(1, id);
+            stmt.executeUpdate();
         }
     }
 
     @Override
     public List<?> listAll() throws SQLException {
-        String sql = "SELECT * FROM ratings ORDER BY created_at DESC";
-
+        String sql = "SELECT * FROM ratings WHERE approval_status = 'approved'";
         List<Rating> ratings = new ArrayList<>();
 
-        try (Connection c = Database.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
+        try (Connection conn = Database.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
 
             while (rs.next()) {
-                ratings.add(mapRow(rs));
+                ratings.add(mapResultSetToRating(rs));
             }
         }
-
         return ratings;
     }
 
     @Override
     public List<?> listByQuery(String query) throws SQLException {
-        throw new UnsupportedOperationException("listByQuery not supported for Rating");
+        throw new UnsupportedOperationException("Query search not applicable for ratings");
     }
 
     @Override
     public List<?> listByRelatedId(UUID relatedId) throws SQLException {
-        // Used for listing ratings by media_id or user_id
-        // Try both to determine which one
-        String sql = "SELECT * FROM ratings WHERE media_id = ? OR user_id = ? ORDER BY created_at DESC";
-
-        List<Rating> ratings = new ArrayList<>();
-
-        try (Connection c = Database.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
-
-            ps.setObject(1, relatedId);
-            ps.setObject(2, relatedId);
-
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    ratings.add(mapRow(rs));
-                }
-            }
-        }
-
-        return ratings;
+        return findByMediaIdApproved(relatedId);
     }
 
     @Override
     public Optional<?> findByString(String identifier) throws SQLException {
-        throw new UnsupportedOperationException("findByString not supported for Rating");
+        throw new UnsupportedOperationException("String lookup not applicable for ratings");
     }
 
-    // === HELPER METHODS (not from interface) ===
+    // CUSTOM METHODS FOR APPROVAL
 
-    public List<Rating> listByMedia(UUID mediaId) throws SQLException {
-        String sql = "SELECT * FROM ratings WHERE media_id = ? ORDER BY created_at DESC";
+    public List<Rating> findByMediaIdApproved(UUID mediaId) throws SQLException {
+        String sql = "SELECT * FROM ratings WHERE media_id = ? AND approval_status = 'approved'";
+        List<Rating> ratings = new ArrayList<>();
 
-        List<Rating> out = new ArrayList<>();
+        try (Connection conn = Database.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-        try (Connection c = Database.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
+            stmt.setObject(1, mediaId);
+            ResultSet rs = stmt.executeQuery();
 
-            ps.setObject(1, mediaId);
-
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    out.add(mapRow(rs));
-                }
+            while (rs.next()) {
+                ratings.add(mapResultSetToRating(rs));
             }
         }
-
-        return out;
+        return ratings;
     }
 
-    public List<Rating> listByUser(UUID userId) throws SQLException {
-        String sql = "SELECT * FROM ratings WHERE user_id = ? ORDER BY created_at DESC";
+    public List<Rating> findByUserId(UUID userId) throws SQLException {
+        String sql = "SELECT * FROM ratings WHERE user_id = ?";
+        List<Rating> ratings = new ArrayList<>();
 
-        List<Rating> out = new ArrayList<>();
+        try (Connection conn = Database.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-        try (Connection c = Database.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
+            stmt.setObject(1, userId);
+            ResultSet rs = stmt.executeQuery();
 
-            ps.setObject(1, userId);
-
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    out.add(mapRow(rs));
-                }
+            while (rs.next()) {
+                ratings.add(mapResultSetToRating(rs));
             }
         }
+        return ratings;
+    }
 
-        return out;
+    public List<Rating> findPendingRatings() throws SQLException {
+        String sql = "SELECT * FROM ratings WHERE approval_status = 'pending' ORDER BY id";
+        List<Rating> ratings = new ArrayList<>();
+
+        try (Connection conn = Database.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                ratings.add(mapResultSetToRating(rs));
+            }
+        }
+        return ratings;
+    }
+
+    public void approveRating(UUID ratingId) throws SQLException {
+        String sql = "UPDATE ratings SET approval_status = 'approved' WHERE id = ?";
+
+        try (Connection conn = Database.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setObject(1, ratingId);
+            stmt.executeUpdate();
+        }
+    }
+
+    public void rejectRating(UUID ratingId) throws SQLException {
+        String sql = "UPDATE ratings SET approval_status = 'rejected' WHERE id = ?";
+
+        try (Connection conn = Database.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setObject(1, ratingId);
+            stmt.executeUpdate();
+        }
+    }
+
+    private Rating mapResultSetToRating(ResultSet rs) throws SQLException {
+        return new Rating(
+                (UUID) rs.getObject("id"),
+                (UUID) rs.getObject("media_id"),
+                (UUID) rs.getObject("user_id"),
+                rs.getInt("stars"),
+                rs.getString("comment"),
+                rs.getString("approval_status")
+        );
     }
 }

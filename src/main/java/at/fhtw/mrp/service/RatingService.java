@@ -10,15 +10,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Service implementation for Rating business logic
- * NOW SUPPORTS: Create, Read, UPDATE, Delete
+ * Service for Rating with comment approval logic
  */
 public class RatingService implements IService {
 
-    private final RatingRepository ratings;
+    private final RatingRepository ratingRepository;
 
-    public RatingService(RatingRepository ratings) {
-        this.ratings = ratings;
+    public RatingService(RatingRepository ratingRepository) {
+        this.ratingRepository = ratingRepository;
     }
 
     @Override
@@ -27,106 +26,137 @@ public class RatingService implements IService {
         int stars = ((Number) data.get("stars")).intValue();
         String comment = (String) data.get("comment");
 
-        if (stars < 1 || stars > 5) {
-            throw new IllegalArgumentException("stars must be 1–5");
-        }
-
-        UUID id = UUID.randomUUID();
-        Rating rating = new Rating(id, mediaId, userId, stars, comment);
-        ratings.insert(rating);
-        return id;
+        return create(mediaId, userId, stars, comment);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public Optional<Rating> get(UUID id) throws SQLException {
-        return (Optional<Rating>) ratings.findById(id);
+    public Optional<?> get(UUID id) throws SQLException {
+        return ratingRepository.findById(id);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public List<Rating> list(String query) throws SQLException {
-        return (List<Rating>) ratings.listAll();
+    public List<?> list(String query) throws SQLException {
+        return ratingRepository.listAll();
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public List<Rating> listByUser(UUID userId) throws SQLException {
-        return (List<Rating>) ratings.listByRelatedId(userId);
+    public List<?> listByUser(UUID userId) throws SQLException {
+        return ratingRepository.findByUserId(userId);
     }
 
     @Override
     public void update(UUID id, UUID userId, Map<String, Object> data) throws SQLException {
-        // ✅ NOW IMPLEMENTED - Edit ratings
-        // Verify ownership
-        Optional<?> ratingOpt = ratings.findById(id);
-        if (ratingOpt.isEmpty()) {
+        Optional<?> existingOpt = ratingRepository.findById(id);
+
+        if (existingOpt.isEmpty()) {
             throw new IllegalArgumentException("Rating not found");
         }
 
-        Rating existing = (Rating) ratingOpt.get();
+        Rating existing = (Rating) existingOpt.get();
+
         if (!existing.getUserId().equals(userId)) {
             throw new SecurityException("You can only edit your own ratings");
         }
 
-        // Validate new stars value
-        int newStars = ((Number) data.get("stars")).intValue();
-        if (newStars < 1 || newStars > 5) {
-            throw new IllegalArgumentException("stars must be 1–5");
+        if (data.containsKey("stars")) {
+            int stars = ((Number) data.get("stars")).intValue();
+            if (stars < 1 || stars > 5) {
+                throw new IllegalArgumentException("Stars must be between 1 and 5");
+            }
+            existing.setStars(stars);
         }
 
-        String newComment = (String) data.get("comment");
+        if (data.containsKey("comment")) {
+            String newComment = (String) data.get("comment");
+            String oldComment = existing.getComment();
+            existing.setComment(newComment);
 
-        // Create updated rating with new values
-        Rating updated = new Rating(id, existing.getMediaId(), userId, newStars, newComment);
-        ratings.update(updated);
+            if (!newComment.equals(oldComment) && existing.isApproved()) {
+                existing.setApprovalStatus("pending");
+            }
+        }
+
+        ratingRepository.update(existing);
     }
 
     @Override
     public void delete(UUID id, UUID userId) throws SQLException {
-        // Verify ownership
-        Optional<?> ratingOpt = ratings.findById(id);
+        Optional<?> ratingOpt = ratingRepository.findById(id);
+
         if (ratingOpt.isEmpty()) {
             throw new IllegalArgumentException("Rating not found");
         }
 
         Rating rating = (Rating) ratingOpt.get();
+
         if (!rating.getUserId().equals(userId)) {
             throw new SecurityException("You can only delete your own ratings");
         }
 
-        ratings.delete(id);
+        ratingRepository.delete(id);
     }
-
-    // HELPER METHODS (not from IService interface)
-
-    public UUID create(UUID mediaId, UUID userId, int stars, String comment) throws SQLException {
-        if (stars < 1 || stars > 5) {
-            throw new IllegalArgumentException("stars must be 1–5");
-        }
-        UUID id = UUID.randomUUID();
-        Rating rating = new Rating(id, mediaId, userId, stars, comment);
-        ratings.insert(rating);
-        return id;
-    }
-
-    public List<Rating> listByMedia(UUID mediaId) throws SQLException {
-        return ratings.listByMedia(mediaId);
-    }
-
-    public Optional<Rating> findById(UUID ratingId) throws SQLException {
-        return (Optional<Rating>) ratings.findById(ratingId);
-    }
-
-    // UNUSED METHODS FROM ISERVICE (not needed in RatingService)
 
     @Override
     public String authenticate(String username, String password) throws SQLException {
-        throw new UnsupportedOperationException("Not applicable for RatingService");
+        throw new UnsupportedOperationException("Authentication not applicable for RatingService");
     }
 
     @Override
     public UUID register(String username, String password) throws SQLException {
-        throw new UnsupportedOperationException("Not applicable for RatingService");
+        throw new UnsupportedOperationException("Registration not applicable for RatingService");
+    }
+
+    // CUSTOM METHODS
+
+    public UUID create(UUID mediaId, UUID userId, int stars, String comment) throws SQLException {
+        if (stars < 1 || stars > 5) {
+            throw new IllegalArgumentException("Stars must be between 1 and 5");
+        }
+
+        Rating rating = new Rating(null, mediaId, userId, stars, comment, "pending");
+        ratingRepository.insert(rating);
+        return rating.getId();
+    }
+
+    public List<Rating> listByMedia(UUID mediaId) throws SQLException {
+        return ratingRepository.findByMediaIdApproved(mediaId);
+    }
+
+    public List<Rating> getPendingRatings() throws SQLException {
+        return ratingRepository.findPendingRatings();
+    }
+
+    public void approveRating(UUID ratingId) throws SQLException {
+        Optional<?> ratingOpt = ratingRepository.findById(ratingId);
+
+        if (ratingOpt.isEmpty()) {
+            throw new IllegalArgumentException("Rating not found");
+        }
+
+        ratingRepository.approveRating(ratingId);
+    }
+
+    public void rejectRating(UUID ratingId) throws SQLException {
+        Optional<?> ratingOpt = ratingRepository.findById(ratingId);
+
+        if (ratingOpt.isEmpty()) {
+            throw new IllegalArgumentException("Rating not found");
+        }
+
+        ratingRepository.rejectRating(ratingId);
+    }
+
+    public double getAverageScore(UUID mediaId) throws SQLException {
+        List<Rating> ratings = ratingRepository.findByMediaIdApproved(mediaId);
+
+        if (ratings.isEmpty()) {
+            return 0.0;
+        }
+
+        double sum = ratings.stream()
+                .mapToInt(Rating::getStars)
+                .sum();
+
+        return sum / ratings.size();
     }
 }

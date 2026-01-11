@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 
 /**
  * Service implementation for Media business logic
- * NOW SUPPORTS: Filtering, Sorting, Search
+ * SUPPORTS: Filtering, Sorting, Search
  */
 public class MediaService implements IService {
 

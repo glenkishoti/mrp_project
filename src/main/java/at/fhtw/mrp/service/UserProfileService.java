@@ -35,8 +35,8 @@ public class UserProfileService {
     public Map<String, Object> getUserStatistics(UUID userId) throws SQLException {
         Map<String, Object> stats = new HashMap<>();
 
-        // Get user's ratings
-        List<Rating> userRatings = ratingRepo.listByUser(userId);
+        // Get user's ratings - FIXED: use findByUserId() instead of listByUser()
+        List<Rating> userRatings = ratingRepo.findByUserId(userId);
 
         // Total ratings given
         stats.put("totalRatingsGiven", userRatings.size());
@@ -116,7 +116,8 @@ public class UserProfileService {
     public Map<String, Object> getUserActivity(UUID userId) throws SQLException {
         Map<String, Object> activity = new HashMap<>();
 
-        List<Rating> userRatings = ratingRepo.listByUser(userId);
+        // FIXED: use findByUserId() instead of listByUser()
+        List<Rating> userRatings = ratingRepo.findByUserId(userId);
 
         // Most recent rating
         if (!userRatings.isEmpty()) {

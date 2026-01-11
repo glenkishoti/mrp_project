@@ -193,7 +193,7 @@ public class MediaRepository implements IRepository {
         throw new UnsupportedOperationException("findByString not supported for MediaEntry");
     }
 
-    // === HELPER METHODS (not from interface) ===
+    // HELPER METHODS (not from interface)
 
     public double averageScore(UUID mediaId) throws SQLException {
         String sql = "SELECT AVG(stars) AS avg_score FROM ratings WHERE media_id = ?";

@@ -15,7 +15,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Standalone UserProfile Handler - NO BaseHandler dependency
+ * UserProfile Handler
  * Supports: Profile, Statistics, Activity
  */
 public class UserProfileHandler implements HttpHandler {
