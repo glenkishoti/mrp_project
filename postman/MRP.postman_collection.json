@@ -1,9 +1,10 @@
 {
 	"info": {
-		"_postman_id": "4d6b0759-0f9b-432a-b055-e912c1cde054",
-		"name": "MRP (DYNAMIC USER VERSION)",
+		"_postman_id": "56fa1c98-ba7f-469f-8e85-d33985074654",
+		"name": "MRP",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "49123993"
+		"_exporter_id": "49123993",
+		"_collection_link": "https://glenkasa18-1838065.postman.co/workspace/0d82cea3-5c9e-42a7-87ec-4586804a463f/collection/49123993-56fa1c98-ba7f-469f-8e85-d33985074654?action=share&source=collection_link&creator=49123993"
 	},
 	"item": [
 		{
@@ -333,6 +334,324 @@
 			]
 		},
 		{
+			"name": "Media (Search & Filter)",
+			"item": [
+				{
+					"name": "Search by Title",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/media?search=Matrix",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"media"
+							],
+							"query": [
+								{
+									"key": "search",
+									"value": "Matrix"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Filter by Genre",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/media?genre=sci-fi",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"media"
+							],
+							"query": [
+								{
+									"key": "genre",
+									"value": "sci-fi"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Filter by Type",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/media?type=movie",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"media"
+							],
+							"query": [
+								{
+									"key": "type",
+									"value": "movie"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Filter by Year Range",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/media?minYear=2000&maxYear=2020",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"media"
+							],
+							"query": [
+								{
+									"key": "minYear",
+									"value": "2000"
+								},
+								{
+									"key": "maxYear",
+									"value": "2020"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Filter by Age Restriction",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/media?maxAge=16",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"media"
+							],
+							"query": [
+								{
+									"key": "maxAge",
+									"value": "16"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Combined Filters",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/media?genre=action&type=movie&minYear=1990&maxYear=2010&maxAge=18",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"media"
+							],
+							"query": [
+								{
+									"key": "genre",
+									"value": "action"
+								},
+								{
+									"key": "type",
+									"value": "movie"
+								},
+								{
+									"key": "minYear",
+									"value": "1990"
+								},
+								{
+									"key": "maxYear",
+									"value": "2010"
+								},
+								{
+									"key": "maxAge",
+									"value": "18"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Media (Sort)",
+			"item": [
+				{
+					"name": "Sort by Title (Ascending)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/media?sortBy=title&sortOrder=asc",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"media"
+							],
+							"query": [
+								{
+									"key": "sortBy",
+									"value": "title"
+								},
+								{
+									"key": "sortOrder",
+									"value": "asc"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Sort by Title (Descending)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/media?sortBy=title&sortOrder=desc",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"media"
+							],
+							"query": [
+								{
+									"key": "sortBy",
+									"value": "title"
+								},
+								{
+									"key": "sortOrder",
+									"value": "desc"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Sort by Year (Newest First)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/media?sortBy=year&sortOrder=desc",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"media"
+							],
+							"query": [
+								{
+									"key": "sortBy",
+									"value": "year"
+								},
+								{
+									"key": "sortOrder",
+									"value": "desc"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Sort by Year (Oldest First)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/media?sortBy=year&sortOrder=asc",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"media"
+							],
+							"query": [
+								{
+									"key": "sortBy",
+									"value": "year"
+								},
+								{
+									"key": "sortOrder",
+									"value": "asc"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Filter & Sort Combined",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/media?genre=action&sortBy=year&sortOrder=desc",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"media"
+							],
+							"query": [
+								{
+									"key": "genre",
+									"value": "action"
+								},
+								{
+									"key": "sortBy",
+									"value": "year"
+								},
+								{
+									"key": "sortOrder",
+									"value": "desc"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
 			"name": "Ratings",
 			"item": [
 				{
@@ -352,7 +671,9 @@
 									"    console.log('❌ Failed to create rating');",
 									"}"
 								],
-								"type": "text/javascript"
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
 							}
 						}
 					],
@@ -376,17 +697,15 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{ \"stars\": 5, \"comment\": \"Amazing movie!\" }"
+							"raw": "{\r\n  \"mediaId\": \"{{mediaId}}\",\r\n  \"stars\": 5,\r\n  \"comment\": \"Amazing movie!\"\r\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/media/{{mediaId}}/ratings",
+							"raw": "{{baseUrl}}/api/ratings",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
 								"api",
-								"media",
-								"{{mediaId}}",
 								"ratings"
 							]
 						}
@@ -396,17 +715,115 @@
 				{
 					"name": "List Ratings for Media",
 					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								},
+								{
+									"key": "undefined",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/media/{{mediaId}}/ratings",
+							"raw": "{{baseUrl}}/api/ratings?mediaId={{mediaId}}",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
 								"api",
-								"media",
-								"{{mediaId}}",
+								"ratings"
+							],
+							"query": [
+								{
+									"key": "mediaId",
+									"value": "{{mediaId}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Edit Rating (PUT)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    console.log('✅ Rating updated successfully');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{ \"stars\": 5, \"comment\": \"Updated: Even better on rewatch!\" }"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/ratings/{{ratingId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"ratings",
+								"{{ratingId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Ratings",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/ratings",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
 								"ratings"
 							]
 						}
@@ -579,6 +996,131 @@
 								"api",
 								"favorites",
 								"{{mediaId}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Profile & Statistics",
+			"item": [
+				{
+					"name": "Get Profile",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/profile",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"profile"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Statistics",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var stats = pm.response.json();",
+									"    console.log('📊 Total Ratings Given:', stats.totalRatingsGiven);",
+									"    console.log('📊 Total Media Created:', stats.totalMediaCreated);",
+									"    console.log('📊 Total Favorites:', stats.totalFavorites);",
+									"    console.log('📊 Favorite Genre:', stats.favoriteGenre);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/profile/statistics",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"profile",
+								"statistics"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Activity",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var activity = pm.response.json();",
+									"    console.log('📈 Ratings Distribution:', JSON.stringify(activity.ratingsDistribution));",
+									"    if (activity.mostRecentRating) {",
+									"        console.log('⭐ Most Recent Rating:', activity.mostRecentRating.stars, 'stars');",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/profile/activity",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"profile",
+								"activity"
 							]
 						}
 					},

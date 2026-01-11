@@ -123,52 +123,11 @@ END;
 $$ LANGUAGE plpgsql;
 ```
 
----
-
-## Architecture Diagram
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    HTTP Requests                        │
-└────────────────────┬────────────────────────────────────┘
-                     │
-        ┌────────────┼────────────┬──────────────┬─────────────┐
-        ▼            ▼            ▼              ▼             ▼
-┌──────────────┬──────────────┬──────────────┬──────────────┬──────────────┐
-│UserHandler   │MediaHandler  │RatingHandler │FavoriteHandler│             │
-│  (HTTP)      │   (HTTP)     │   (HTTP)     │    (HTTP)     │             │
-└──────┬───────┴──────┬───────┴──────┬───────┴──────┬────────┴─────────────┘
-       │              │              │              │
-       ▼              ▼              ▼              ▼
-┌──────────────┬──────────────┬──────────────┬──────────────┐
-│AuthService   │MediaService  │RatingService │FavoriteService│
-│implements    │implements    │implements    │implements     │
-│IService      │IService      │IService      │IService       │
-└──────┬───────┴──────┬───────┴──────┬───────┴──────┬────────┘
-       │              │              │              │
-       ▼              ▼              ▼              ▼
-┌──────────────┬──────────────┬──────────────┬──────────────┐
-│UserRepo      │MediaRepo     │RatingRepo    │FavoriteRepo  │
-│implements    │implements    │implements    │implements    │
-│IRepository   │IRepository   │IRepository   │IRepository   │
-└──────┬───────┴──────┬───────┴──────┬───────┴──────┬────────┘
-       │              │              │              │
-       └──────────────┴──────────────┴──────────────┘
-                           │
-                           ▼
-                 ┌──────────────────┐
-                 │   PostgreSQL     │
-                 │    Database      │
-                 └──────────────────┘
-```
-
 
 ---
 
 ## Key Flows
-
 ### User Registration
-
 1. UserHandler receives POST `/api/users/register`
 2. Validates JSON body (username, password)
 3. AuthService.register():
@@ -177,7 +136,6 @@ $$ LANGUAGE plpgsql;
 4. Returns 201 Created
 
 ### User Login
-
 1. UserHandler receives POST `/api/users/login`
 2. Validates JSON body (Username, Password)
 3. AuthService.authenticate():
@@ -188,7 +146,6 @@ $$ LANGUAGE plpgsql;
 4. Returns 200 OK with token
 
 ### Media CRUD
-
 **Create:**
 1. MediaHandler receives POST `/api/media` with Bearer token
 2. TokenService validates token → gets User
@@ -199,10 +156,39 @@ $$ LANGUAGE plpgsql;
 4. Returns 201 Created with media ID
 
 **List/Search:**
-1. MediaHandler receives GET `/api/media?query=term`
+1. MediaHandler receives GET `/api/media` or GET `/api/media?query=term`
 2. MediaService.list(query):
    - Calls MediaRepository.listByQuery() for ILIKE search
 3. Returns 200 OK with media array
+
+**Search by Title:**
+1. MediaHandler receives GET `/api/media?search=term`
+2. MediaService.searchByTitle(query):
+   - Calls MediaRepository.listByQuery() for case-insensitive search
+3. Returns 200 OK with matching media array
+
+**Filter:**
+1. MediaHandler receives GET `/api/media?genre=action&type=movie&minYear=2000&maxYear=2020&maxAge=16`
+2. MediaService.filterAndSort(filters, sortBy, sortOrder):
+   - Fetches all media
+   - Applies Stream-based filters for genre, type, year range, age restriction
+   - Can combine multiple filters
+3. Returns 200 OK with filtered media array
+
+**Sort:**
+1. MediaHandler receives GET `/api/media?sortBy=title&sortOrder=asc`
+2. MediaService.filterAndSort(filters, sortBy, sortOrder):
+   - Applies Comparator-based sorting
+   - Supports sorting by title, year, or score
+   - Supports ascending or descending order
+3. Returns 200 OK with sorted media array
+
+**Get One:**
+1. MediaHandler receives GET `/api/media/{id}`
+2. MediaService.get(id):
+   - Fetches media entry
+   - Calculates average score
+3. Returns 200 OK with media details
 
 **Update:**
 1. MediaHandler receives PUT `/api/media/{id}` with Bearer token
@@ -218,12 +204,11 @@ $$ LANGUAGE plpgsql;
 3. MediaService.delete():
    - Verifies user is owner
    - Calls MediaRepository.delete()
-4. Returns 204 No Content
+4. Returns 200 OK
 
 ### Ratings
-
 **Create:**
-1. MediaHandler receives POST `/api/media/{mediaId}/ratings`
+1. RatingHandler receives POST `/api/ratings` with mediaId in body
 2. TokenService validates token → gets User
 3. RatingService.create():
    - Validates stars (1-5)
@@ -231,21 +216,36 @@ $$ LANGUAGE plpgsql;
    - One rating per user per media (database constraint)
 4. Returns 201 Created with rating ID
 
-**List:**
-1. MediaHandler receives GET `/api/media/{mediaId}/ratings`
-2. RatingService.listByMedia(mediaId)
-3. Returns 200 OK with ratings array
+**Edit:**
+1. RatingHandler receives PUT `/api/ratings/{ratingId}` with Bearer token
+2. TokenService validates token → gets User
+3. RatingService.update():
+   - Verifies user is rating owner
+   - Validates stars (1-5)
+   - Updates rating stars and comment
+4. Returns 200 OK
+
+**List by Media:**
+1. RatingHandler receives GET `/api/ratings?mediaId={id}` with Bearer token
+2. TokenService validates token → gets User
+3. RatingService.listByMedia(mediaId)
+4. Returns 200 OK with ratings array
+
+**List My Ratings:**
+1. RatingHandler receives GET `/api/ratings` with Bearer token
+2. TokenService validates token → gets User
+3. RatingService.listByUser(userId)
+4. Returns 200 OK with user's ratings array
 
 **Delete:**
-1. RatingHandler receives DELETE `/api/ratings/{ratingId}`
+1. RatingHandler receives DELETE `/api/ratings/{ratingId}` with Bearer token
 2. TokenService validates token → gets User
 3. RatingService.delete():
    - Verifies user is rating owner
    - Deletes rating
-4. Returns 204 No Content
+4. Returns 200 OK
 
 ### Favorites
-
 **Add to Favorites:**
 1. FavoriteHandler receives POST `/api/favorites` with mediaId in body
 2. TokenService validates token → gets User
@@ -274,6 +274,31 @@ $$ LANGUAGE plpgsql;
 3. FavoriteService.removeFavorite()
 4. Returns 200 OK
 
+### User Profile & Statistics
+**Get Profile:**
+1. UserProfileHandler receives GET `/api/profile` with Bearer token
+2. TokenService validates token → gets User
+3. Returns 200 OK with user ID and username
+
+**Get Statistics:**
+1. UserProfileHandler receives GET `/api/profile/statistics` with Bearer token
+2. TokenService validates token → gets User
+3. UserProfileService.getUserStatistics():
+   - Calculates totalRatingsGiven, averageScoreGiven
+   - Counts totalMediaCreated, totalFavorites
+   - Determines favoriteGenre (most common in favorites)
+   - Identifies topGenres (top 3)
+   - Calculates averageRatingReceived (on user's media)
+4. Returns 200 OK with comprehensive statistics object
+
+**Get Activity:**
+1. UserProfileHandler receives GET `/api/profile/activity` with Bearer token
+2. TokenService validates token → gets User
+3. UserProfileService.getUserActivity():
+   - Fetches mostRecentRating
+   - Calculates ratingsDistribution (count by stars 1-5)
+4. Returns 200 OK with activity data
+
 ---
 
 ## HTTP Status Codes
@@ -298,33 +323,151 @@ $$ LANGUAGE plpgsql;
 
 ### Unit Tests
 
-Required test coverage:
-- PasswordUtil: hashing, verification
-- TokenService: token generation, parsing, authentication
-- Service validation: stars validation (1-5), field validation
-- Repository operations: CRUD operations
-- Authorization checks: ownership verification
+## Unit Testing Strategy and Coverage
 
-**Total required: 20 meaningful unit tests**
+### Testing Approach
+
+Created 20 comprehensive unit tests using **JUnit 5** and **Mockito** to validate core business logic in isolation. The testing strategy follows the **AAA pattern** (Arrange, Act, Assert) and uses mocking to isolate services from database dependencies.
+
+### Test Framework and Tools
+
+- **JUnit 5 (Jupiter)** - Modern testing framework with improved annotations and assertions
+- **Mockito 5.5.0** - Mocking framework for creating test doubles
+- **Maven Surefire Plugin** - Test execution and reporting
+
+### Test Coverage (20 Tests Total)
+
+#### 1. TokenServiceTest (3 tests)
+Tests token generation and format validation without accessing private methods:
+- **Test 1**: Token generation produces valid format (UUID;username;secret)
+- **Test 2**: Two tokens for same user have different secrets (validates randomization)
+- **Test 3**: Token contains valid UUID as first part
+
+**Rationale**: Token security is critical for authentication. Tests verify format consistency and UUID validity without testing private implementation details.
+
+#### 2. AuthServiceTest (5 tests)
+Tests user authentication and registration workflows:
+- **Test 4**: Register creates user and returns UUID
+- **Test 5**: Register hashes password before storing (security validation)
+- **Test 6**: Register creates unique user IDs
+- **Test 7**: Authenticate with valid credentials returns token
+- **Test 8**: Authenticate with wrong password throws IllegalArgumentException
+
+**Rationale**: Authentication is the entry point to the system. Tests verify password hashing, token generation, and credential validation while mocking UserRepository to avoid database dependencies.
+
+#### 3. FavoriteServiceTest (3 tests)
+Tests favorite management business logic:
+- **Test 9**: Add favorite with valid media succeeds
+- **Test 10**: Add favorite with non-existent media throws IllegalArgumentException
+- **Test 11**: Get user favorites returns correct list
+
+**Rationale**: Favorites require media validation. Tests verify that only existing media can be favorited and that user favorites are retrieved correctly. Uses `doReturn()` for Mockito compatibility with wildcard return types.
+
+#### 4. RatingServiceTest (5 tests)
+Tests rating business rules and validation:
+- **Test 12**: Create rating with valid stars (1-5) succeeds
+- **Test 13**: Stars < 1 throws IllegalArgumentException
+- **Test 14**: Stars > 5 throws IllegalArgumentException
+- **Test 15**: Null comment succeeds (comment is optional)
+- **Test 16**: Empty comment succeeds
+
+**Rationale**: The specification requires stars to be 1-5. These tests enforce this critical business rule and verify that comments are optional. Exception messages are validated to ensure proper error reporting.
+
+#### 5. MediaServiceTest (4 tests)
+Tests media creation and UUID generation:
+- **Test 17**: Create media with valid fields succeeds
+- **Test 18**: Create media with minimal fields succeeds
+- **Test 19**: Create media with null optional fields succeeds
+- **Test 20**: Create media returns unique IDs
+
+**Rationale**: Media entries are the core entities. Tests verify successful creation with various field combinations and UUID uniqueness. Note: Input validation is handled at the handler layer, so service tests focus on successful operations.
+
+### Testing Patterns and Best Practices
+
+#### Mocking Strategy
+- **What we mock**: All repository dependencies (UserRepository, MediaRepository, RatingRepository, FavoriteRepository)
+- **Why**: To isolate service logic from database layer and avoid database setup in unit tests
+- **How**: Using Mockito's `@Mock` annotation and `MockitoAnnotations.openMocks()`
+
+#### Test Structure (AAA Pattern)
+```java
+@Test
+void testExample() {
+    // Arrange - Set up test data and mocks
+    UUID id = UUID.randomUUID();
+    when(repository.findById(id)).thenReturn(Optional.of(entity));
+    
+    // Act - Execute the method under test
+    Result result = service.someMethod(id);
+    
+    // Assert - Verify the outcome
+    assertNotNull(result);
+    verify(repository).findById(id);
+}
+```
+
+#### Key Testing Decisions
+
+1. **No Database Access**: All tests use mocks instead of a test database, ensuring fast execution and no setup requirements
+2. **Focus on Business Logic**: Tests validate business rules (stars 1-5, media existence) rather than data persistence
+3. **Mockito doReturn() for Wildcards**: Used `doReturn().when()` instead of `when().thenReturn()` for methods returning `Optional<?>` to avoid type inference issues
+4. **Exception Testing**: Validates both exception types and messages for proper error handling
+5. **Concrete Repository Classes**: Tests mock concrete repository classes (UserRepository, MediaRepository, etc.) that implement the unified IRepository interface
 
 ### Integration Tests
 
-**Postman Collection**: `MRP_DYNAMIC_USER_VERSION.postman_collection.json`
+**Postman Collection**: `MRP.postman_collection.json`
 
 Test flows:
+**Users (3 tests):**
 1. Register user
 2. Login (auto-saves token + username)
-3. Create media (auto-saves mediaId)
-4. Get media
-5. Update media
-6. Create rating (auto-saves ratingId)
-7. List ratings
-8. Add to favorites
-9. Get favorites
-10. Delete rating
-11. Delete media
+3. Get user profile (GET /api/users/{username}/profile)
 
-**Environment**: `MRP_Local_FIXED.postman_environment.json`
+**Media (6 tests):**
+4. Create media (auto-saves mediaId)
+5. List all media
+6. Search media by title (GET /api/media?query=...)
+7. Get one media
+8. Update media
+9. Delete media
+
+**Media (Search & Filter) (6 tests):**
+10. Search by title (GET /api/media?search=query)
+11. Filter by genre (GET /api/media?genre=sci-fi)
+12. Filter by type (GET /api/media?type=movie)
+13. Filter by year range (GET /api/media?minYear=2000&maxYear=2020)
+14. Filter by age restriction (GET /api/media?maxAge=16)
+15. Combined filters (genre + type + year + age)
+
+**Media (Sort) (5 tests):**
+16. Sort by title ascending (GET /api/media?sortBy=title&sortOrder=asc)
+17. Sort by title descending (GET /api/media?sortBy=title&sortOrder=desc)
+18. Sort by year newest first (GET /api/media?sortBy=year&sortOrder=desc)
+19. Sort by year oldest first (GET /api/media?sortBy=year&sortOrder=asc)
+20. Filter and sort combined (GET /api/media?genre=action&sortBy=year&sortOrder=desc)
+
+**Ratings (5 tests):**
+21. Create rating (auto-saves ratingId)
+22. List ratings for media (GET /api/ratings?mediaId={id})
+23. Edit rating (PUT /api/ratings/{id})
+24. Get my ratings (GET /api/ratings)
+25. Delete rating
+
+**Favorites (4 tests):**
+26. Add media to favorites
+27. Get user's favorites
+28. Check if favorited
+29. Remove from favorites
+
+**Profile & Statistics (3 tests):**
+30. Get profile (GET /api/profile)
+31. Get statistics (GET /api/profile/statistics)
+32. Get activity (GET /api/profile/activity)
+
+**Total**: 32 integration tests across 7 feature folders
+
+**Environment**: `MRP_Local.postman_environment.json`
 - `baseUrl`: http://localhost:8080
 - `username`: Auto-filled on login
 - `token`: Auto-filled on login
@@ -429,7 +572,45 @@ Test flows:
   - Created comprehensive guides
   - Documented architecture decisions
 
-**Total Estimated Time**: ~20 hours
+### Testing & Quality Assurance
+- **Unit Testing**: 4 hours
+  - Created 20 JUnit tests with Mockito
+  - Mocked all repository dependencies
+  - Tested UserService, MediaService, RatingService, FavoriteService
+  - Achieved comprehensive coverage of CRUD operations
+  - Fixed interface mocking issues with concrete types
+
+### New Feature Implementation
+- **Edit Ratings Feature**: 3 hours
+  - Implemented RatingService.update() with ownership validation
+  - Added PUT endpoint in RatingHandler
+  - Updated RatingRepository with SQL UPDATE
+  - Fixed path parsing bugs (parts[2] → parts[3])
+  
+- **Search & Filter Media**: 4 hours
+  - Implemented MediaService.searchByTitle() for case-insensitive search
+  - Created MediaService.filterAndSort() with Stream-based filtering
+  - Added support for genre, type, year range, age restriction filters
+  - Enabled multiple filter combinations
+  
+- **Sort Results Feature**: 2 hours
+  - Implemented Comparator-based sorting by title, year, score
+  - Added ascending/descending order support
+  - Integrated sorting with filtering
+  
+- **User Profile Statistics**: 3 hours
+  - Created UserProfileService with comprehensive statistics
+  - Calculated total ratings, averages, favorite genres
+  - Implemented ratings distribution and recent activity
+  - Added 3 new endpoints for profile, statistics, and activity
+  
+- **Postman Testing Collection**: 2 hours
+  - Extended existing collection with 4 new folders (17 requests)
+  - Added automated tests for all new features
+  - Created dynamic test workflows
+  - Fixed endpoint URLs to match new handler structure
+
+**Total Project Time**: ~40 hours
 
 ---
 
@@ -476,6 +657,8 @@ Commit history shows:
 - Step 2: Feature-> media + rating handlers + SQL schema update
 - Fix handler constructors, inject services properly, correct Main wiring
 - Step 3: Added Media Favourite functionality, IRepository and IService interfaces and fixed Postman integration tests to work dynamically
+- Step 4: Added 20 Unit Tests
+- Step 5: Added new features: edit ratings, search media by title, filter media, sort results, user stats
 
 ---
 

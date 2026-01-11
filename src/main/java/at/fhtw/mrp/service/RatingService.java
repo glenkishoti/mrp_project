@@ -9,8 +9,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
-//Service implementation for Rating business logic
-
+/**
+ * Service implementation for Rating business logic
+ * NOW SUPPORTS: Create, Read, UPDATE, Delete
+ */
 public class RatingService implements IService {
 
     private final RatingRepository ratings;
@@ -55,7 +57,29 @@ public class RatingService implements IService {
 
     @Override
     public void update(UUID id, UUID userId, Map<String, Object> data) throws SQLException {
-        throw new UnsupportedOperationException("Ratings cannot be updated, delete and recreate instead");
+        // ✅ NOW IMPLEMENTED - Edit ratings
+        // Verify ownership
+        Optional<?> ratingOpt = ratings.findById(id);
+        if (ratingOpt.isEmpty()) {
+            throw new IllegalArgumentException("Rating not found");
+        }
+
+        Rating existing = (Rating) ratingOpt.get();
+        if (!existing.getUserId().equals(userId)) {
+            throw new SecurityException("You can only edit your own ratings");
+        }
+
+        // Validate new stars value
+        int newStars = ((Number) data.get("stars")).intValue();
+        if (newStars < 1 || newStars > 5) {
+            throw new IllegalArgumentException("stars must be 1–5");
+        }
+
+        String newComment = (String) data.get("comment");
+
+        // Create updated rating with new values
+        Rating updated = new Rating(id, existing.getMediaId(), userId, newStars, newComment);
+        ratings.update(updated);
     }
 
     @Override

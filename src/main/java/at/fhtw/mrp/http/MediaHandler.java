@@ -2,255 +2,243 @@ package at.fhtw.mrp.http;
 
 import at.fhtw.mrp.model.MediaEntry;
 import at.fhtw.mrp.model.User;
-import at.fhtw.mrp.service.AuthService;
 import at.fhtw.mrp.service.MediaService;
-import at.fhtw.mrp.service.RatingService;
+import at.fhtw.mrp.repo.UserRepository;
+import at.fhtw.mrp.util.TokenService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
-import java.io.InputStream;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.util.*;
+import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
- * HTTP Handler for Media endpoints
- *
- * Endpoints:
- * - GET    /api/media
- * - GET    /api/media?query=text
- * - POST   /api/media
- * - GET    /api/media/{id}
- * - PUT    /api/media/{id}
- * - DELETE /api/media/{id}
- * - POST   /api/media/{id}/ratings
- * - GET    /api/media/{id}/ratings
+ * Standalone Media Handler - NO BaseHandler dependency
+ * Supports: Filtering, Sorting, Search
  */
 public class MediaHandler implements HttpHandler {
 
-    private final ObjectMapper mapper = new ObjectMapper();
     private final MediaService mediaService;
-    private final RatingService ratingService;
-    private final AuthService authService;
+    private final UserRepository userRepository = new UserRepository();
+    private final ObjectMapper mapper = new ObjectMapper();
 
-    public MediaHandler(MediaService mediaService,
-                        RatingService ratingService,
-                        AuthService authService) {
+    // Constructor matching your Main.java signature
+    public MediaHandler(MediaService mediaService, Object ratingService, Object authService) {
         this.mediaService = mediaService;
-        this.ratingService = ratingService;
-        this.authService = authService;
+        // Ignore the extra parameters - they're not needed for the new features
     }
 
     @Override
-    public void handle(HttpExchange ex) {
+    public void handle(HttpExchange exchange) throws IOException {
         try {
-            String method = ex.getRequestMethod();
-            String path = ex.getRequestURI().getPath();
+            String method = exchange.getRequestMethod();
+            String path = exchange.getRequestURI().getPath();
 
-            if (method.equals("OPTIONS")) {
-                send(ex, 200, Map.of());
-                return;
-            }
-
-            // -----------------------------------------------------------
-            // GET /api/media?query=text
-            // -----------------------------------------------------------
-            if (method.equals("GET") && path.equals("/api/media")) {
-                String query = ex.getRequestURI().getQuery();
-                String search = parseQuery(query).get("query");
-                send(ex, 200, mediaService.list(search));
-                return;
-            }
-
-            // -----------------------------------------------------------
-            // POST /api/media   (auth required)
-            // -----------------------------------------------------------
-            if (method.equals("POST") && path.equals("/api/media")) {
-                User user = requireAuth(ex);
-                Map<String, Object> body = readJson(ex);
-
-                UUID id = mediaService.createFromRequest(user, body);
-                send(ex, 201, Map.of("id", id.toString()));
-                return;
-            }
-
-            // -----------------------------------------------------------
-            // POST /api/media/{id}/ratings
-            // -----------------------------------------------------------
-            if (method.equals("POST") && path.matches("^/api/media/.+/ratings$")) {
-                User user = requireAuth(ex);
-                UUID mediaId = extractUUID(path, "/api/media/", "/ratings");
-
-                Map<String, Object> body = readJson(ex);
-                int stars = ((Number) body.get("stars")).intValue();
-                String comment = (String) body.get("comment");
-
-                UUID ratingId = ratingService.create(mediaId, user.getId(), stars, comment);
-                send(ex, 201, Map.of("id", ratingId.toString()));
-                return;
-            }
-
-            // -----------------------------------------------------------
-            // GET /api/media/{id}/ratings
-            // -----------------------------------------------------------
-            if (method.equals("GET") && path.matches("^/api/media/.+/ratings$")) {
-                UUID mediaId = extractUUID(path, "/api/media/", "/ratings");
-                send(ex, 200, ratingService.listByMedia(mediaId));
-                return;
-            }
-
-            // -----------------------------------------------------------
-            // /api/media/{id} - individual media operations
-            // -----------------------------------------------------------
-            UUID mediaId = extractUUID(path, "/api/media/");
-            if (mediaId != null) {
-
-                // GET /api/media/{id}
-                if (method.equals("GET")) {
-                    Optional<MediaEntry> entryOpt = mediaService.get(mediaId);
-                    if (entryOpt.isEmpty()) {
-                        send(ex, 404, Map.of("error", "Not found"));
-                        return;
-                    }
-
-                    MediaEntry entry = entryOpt.get();
-                    double avg = mediaService.averageScore(mediaId);
-
-                    Map<String, Object> payload = new LinkedHashMap<>();
-                    payload.put("id", entry.getId().toString());
-                    payload.put("ownerId", entry.getOwnerId().toString());
-                    payload.put("title", entry.getTitle());
-                    payload.put("description", entry.getDescription());
-                    payload.put("mediaType", entry.getMediaType());
-                    payload.put("releaseYear", entry.getReleaseYear());
-                    payload.put("genres", entry.getGenres());
-                    payload.put("ageRestriction", entry.getAgeRestriction());
-                    payload.put("averageScore", avg);
-
-                    send(ex, 200, payload);
-                    return;
-                }
-
-                // PUT /api/media/{id}
-                if (method.equals("PUT")) {
-                    User user = requireAuth(ex);
-                    Map<String, Object> body = readJson(ex);
-
-                    mediaService.updateFromRequest(mediaId, user, body);
-                    send(ex, 200, Map.of("message", "updated"));
-                    return;
-                }
-
-                // DELETE /api/media/{id}
-                if (method.equals("DELETE")) {
-                    User user = requireAuth(ex);
-                    mediaService.delete(mediaId, user);
-                    send(ex, 204, new byte[0]);
-                    return;
-                }
-            }
-
-            send(ex, 404, Map.of("error", "Not found"));
-
-        } catch (SecurityException se) {
-            send(ex, 401, Map.of("error", se.getMessage()));
-        } catch (IllegalArgumentException iae) {
-            send(ex, 400, Map.of("error", iae.getMessage()));
-        } catch (Exception e) {
-            e.printStackTrace();
-            send(ex, 500, Map.of("error", "Server error"));
-        }
-    }
-
-    // -------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------
-
-    private User requireAuth(HttpExchange ex) throws Exception {
-        String authHeader = ex.getRequestHeaders().getFirst("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new SecurityException("Unauthorized");
-        }
-
-        String token = authHeader.substring("Bearer ".length()).trim();
-
-        // Parse userId from token (assuming format: "userId;username;secret")
-        String[] parts = token.split(";");
-        if (parts.length < 2) {
-            throw new SecurityException("Invalid token");
-        }
-
-        UUID userId = UUID.fromString(parts[0]);
-        String username = parts[1];
-
-        // Create a minimal User object for authorization purposes
-        return new User(userId, username, null, token);
-    }
-
-    private Map<String, Object> readJson(HttpExchange ex) throws Exception {
-        try (InputStream in = ex.getRequestBody()) {
-            if (in == null) return Map.of();
-            return mapper.readValue(in, Map.class);
-        }
-    }
-
-    private void send(HttpExchange ex, int code, Object payload) {
-        try {
-            byte[] json = (payload instanceof byte[])
-                    ? (byte[]) payload
-                    : mapper.writeValueAsBytes(payload);
-
-            ex.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
-            ex.sendResponseHeaders(code, json.length);
-
-            try (OutputStream os = ex.getResponseBody()) {
-                os.write(json);
+            switch (method) {
+                case "POST" -> handleCreate(exchange);
+                case "GET" -> handleList(exchange, path);
+                case "PUT" -> handleUpdate(exchange, path);
+                case "DELETE" -> handleDelete(exchange, path);
+                default -> sendResponse(exchange, 405, Map.of("error", "Method not allowed"));
             }
         } catch (Exception e) {
             e.printStackTrace();
+            sendResponse(exchange, 500, Map.of("error", e.getMessage()));
         }
     }
 
-    private Map<String, String> parseQuery(String q) {
-        Map<String, String> m = new HashMap<>();
-        if (q == null) return m;
-
-        for (String kv : q.split("&")) {
-            String[] p = kv.split("=", 2);
-            m.put(p[0], p.length == 2 ? p[1] : "");
-        }
-        return m;
-    }
-
-    private UUID extractUUID(String path, String prefix) {
-        if (!path.startsWith(prefix)) return null;
-        String idStr = path.substring(prefix.length());
-
-        // Handle trailing slash
-        if (idStr.endsWith("/")) {
-            idStr = idStr.substring(0, idStr.length() - 1);
-        }
-
-        // Basic UUID format check
-        if (!idStr.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) {
-            return null;
-        }
-
+    // Helper: Authenticate user from Bearer token
+    private Optional<User> authenticateUser(HttpExchange exchange) {
         try {
-            return UUID.fromString(idStr);
-        } catch (IllegalArgumentException e) {
-            return null;
+            String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return Optional.empty();
+            }
+            return TokenService.authenticate(authHeader, userRepository);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return Optional.empty();
         }
     }
 
-    private UUID extractUUID(String path, String prefix, String suffix) {
-        if (!path.startsWith(prefix) || !path.endsWith(suffix)) return null;
-        String part = path.substring(prefix.length(), path.length() - suffix.length());
-
-        try {
-            return UUID.fromString(part);
-        } catch (IllegalArgumentException e) {
-            return null;
+    // Helper: Parse JSON request body
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseRequestBody(HttpExchange exchange) throws IOException {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(exchange.getRequestBody()));
+        StringBuilder body = new StringBuilder();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            body.append(line);
         }
+        if (body.length() == 0) return new HashMap<>();
+        return mapper.readValue(body.toString(), Map.class);
+    }
+
+    // Helper: Get single query parameter
+    private String getQueryParam(HttpExchange exchange, String paramName) {
+        String query = exchange.getRequestURI().getQuery();
+        if (query == null) return null;
+        for (String param : query.split("&")) {
+            String[] kv = param.split("=", 2);
+            if (kv.length == 2 && kv[0].equals(paramName)) {
+                return kv[1];
+            }
+        }
+        return null;
+    }
+
+    // Helper: Get all query parameters
+    private Map<String, String> getAllQueryParams(HttpExchange exchange) {
+        Map<String, String> params = new HashMap<>();
+        String query = exchange.getRequestURI().getQuery();
+        if (query == null) return params;
+        for (String pair : query.split("&")) {
+            String[] kv = pair.split("=", 2);
+            if (kv.length == 2) {
+                params.put(kv[0], kv[1]);
+            }
+        }
+        return params;
+    }
+
+    // Helper: Send JSON response
+    private void sendResponse(HttpExchange exchange, int statusCode, Object data) throws IOException {
+        String json = mapper.writeValueAsString(data);
+        byte[] bytes = json.getBytes();
+        exchange.getResponseHeaders().set("Content-Type", "application/json");
+        exchange.sendResponseHeaders(statusCode, bytes.length);
+        try (OutputStream os = exchange.getResponseBody()) {
+            os.write(bytes);
+        }
+    }
+
+    private void handleCreate(HttpExchange exchange) throws IOException, SQLException {
+        Optional<User> userOpt = authenticateUser(exchange);
+        if (userOpt.isEmpty()) {
+            sendResponse(exchange, 401, Map.of("error", "Unauthorized"));
+            return;
+        }
+
+        Map<String, Object> body = parseRequestBody(exchange);
+        UUID mediaId = mediaService.createFromRequest(userOpt.get(), body);
+
+        sendResponse(exchange, 201, Map.of("id", mediaId, "message", "Media created successfully"));
+    }
+
+    private void handleList(HttpExchange exchange, String path) throws IOException, SQLException {
+        String[] parts = path.split("/");
+        // Path: /api/media/{id} splits to ["", "api", "media", "{id}"]
+        // Only call handleGet if there's actually an ID (parts[3] exists)
+        if (parts.length >= 4 && !parts[3].isBlank()) {
+            handleGet(exchange, parts[3]);  // Changed from parts[2] to parts[3]
+            return;
+        }
+
+        Map<String, String> params = getAllQueryParams(exchange);
+        String search = params.get("search");
+        String genre = params.get("genre");
+        String type = params.get("type");
+        String year = params.get("year");
+        String minYear = params.get("minYear");
+        String maxYear = params.get("maxYear");
+        String maxAge = params.get("maxAge");
+        String sortBy = params.get("sortBy");
+        String sortOrder = params.get("sortOrder");
+
+        List<MediaEntry> results;
+
+        if (genre != null || type != null || year != null || minYear != null ||
+                maxYear != null || maxAge != null || sortBy != null) {
+            Map<String, String> filters = new HashMap<>();
+            if (genre != null) filters.put("genre", genre);
+            if (type != null) filters.put("type", type);
+            if (year != null) filters.put("year", year);
+            if (minYear != null) filters.put("minYear", minYear);
+            if (maxYear != null) filters.put("maxYear", maxYear);
+            if (maxAge != null) filters.put("maxAge", maxAge);
+            results = mediaService.filterAndSort(filters, sortBy, sortOrder);
+        } else if (search != null) {
+            results = mediaService.searchByTitle(search);
+        } else {
+            results = mediaService.list(null);
+        }
+
+        sendResponse(exchange, 200, results);
+    }
+
+    private void handleGet(HttpExchange exchange, String idStr) throws IOException, SQLException {
+        try {
+            UUID id = UUID.fromString(idStr);
+            Optional<MediaEntry> media = mediaService.get(id);
+
+            if (media.isEmpty()) {
+                sendResponse(exchange, 404, Map.of("error", "Media not found"));
+                return;
+            }
+
+            MediaEntry entry = media.get();
+            Map<String, Object> response = Map.of(
+                    "id", entry.getId(),
+                    "ownerId", entry.getOwnerId(),
+                    "title", entry.getTitle(),
+                    "description", entry.getDescription(),
+                    "mediaType", entry.getMediaType(),
+                    "releaseYear", entry.getReleaseYear() != null ? entry.getReleaseYear() : 0,
+                    "genres", entry.getGenres() != null ? entry.getGenres() : "",
+                    "ageRestriction", entry.getAgeRestriction() != null ? entry.getAgeRestriction() : 0,
+                    "averageScore", mediaService.averageScore(id)
+            );
+
+            sendResponse(exchange, 200, response);
+        } catch (IllegalArgumentException e) {
+            sendResponse(exchange, 400, Map.of("error", "Invalid media ID"));
+        }
+    }
+
+    private void handleUpdate(HttpExchange exchange, String path) throws IOException, SQLException {
+        Optional<User> userOpt = authenticateUser(exchange);
+        if (userOpt.isEmpty()) {
+            sendResponse(exchange, 401, Map.of("error", "Unauthorized"));
+            return;
+        }
+
+        String[] parts = path.split("/");
+        if (parts.length < 4) {  // Changed from 3 to 4
+            sendResponse(exchange, 400, Map.of("error", "Media ID required"));
+            return;
+        }
+
+        UUID mediaId = UUID.fromString(parts[3]);  // Changed from parts[2] to parts[3]
+        Map<String, Object> body = parseRequestBody(exchange);
+        mediaService.updateFromRequest(mediaId, userOpt.get(), body);
+
+        sendResponse(exchange, 200, Map.of("message", "Media updated successfully"));
+    }
+
+    private void handleDelete(HttpExchange exchange, String path) throws IOException, SQLException {
+        Optional<User> userOpt = authenticateUser(exchange);
+        if (userOpt.isEmpty()) {
+            sendResponse(exchange, 401, Map.of("error", "Unauthorized"));
+            return;
+        }
+
+        String[] parts = path.split("/");
+        if (parts.length < 4) {  // Changed from 3 to 4
+            sendResponse(exchange, 400, Map.of("error", "Media ID required"));
+            return;
+        }
+
+        UUID mediaId = UUID.fromString(parts[3]);  // Changed from parts[2] to parts[3]
+        mediaService.delete(mediaId, userOpt.get());
+
+        sendResponse(exchange, 200, Map.of("message", "Media deleted successfully"));
     }
 }

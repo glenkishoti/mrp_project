@@ -22,7 +22,7 @@ import static org.mockito.Mockito.*;
  * Unit tests for FavoriteService
  * Tests favorite functionality
  */
-class FavoriteServiceTest {
+class FavouriteServiceTest {
 
     @Mock
     private FavoriteRepository favoriteRepository;

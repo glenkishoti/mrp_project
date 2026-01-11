@@ -11,6 +11,7 @@ import java.util.UUID;
 
 /**
  * PostgreSQL implementation of IRepository for Rating entities
+ * NOW SUPPORTS UPDATE
  */
 public class RatingRepository implements IRepository {
 
@@ -63,7 +64,27 @@ public class RatingRepository implements IRepository {
 
     @Override
     public void update(Object entity) throws SQLException {
-        throw new UnsupportedOperationException("update not supported for Rating (delete and recreate instead)");
+        // ✅ NOW IMPLEMENTED - Update ratings
+        Rating rating = (Rating) entity;
+        String sql = """
+                UPDATE ratings SET
+                    stars = ?,
+                    comment = ?
+                WHERE id = ?
+                """;
+
+        try (Connection c = Database.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+
+            ps.setInt(1, rating.getStars());
+            ps.setString(2, rating.getComment());
+            ps.setObject(3, rating.getId());
+
+            int rows = ps.executeUpdate();
+            if (rows == 0) {
+                throw new IllegalArgumentException("Rating not found");
+            }
+        }
     }
 
     @Override
