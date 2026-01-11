@@ -296,7 +296,7 @@ $$ LANGUAGE plpgsql;
 
 ## Testing
 
-### Unit Tests (Not yet implemented - MUST-HAVE requirement!)
+### Unit Tests
 
 Required test coverage:
 - PasswordUtil: hashing, verification
