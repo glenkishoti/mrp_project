@@ -9,7 +9,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public class MediaRepository implements IMediaRepository {
+/**
+ * PostgreSQL implementation of IRepository for MediaEntry entities
+ */
+public class MediaRepository implements IRepository {
 
     private MediaEntry mapRow(ResultSet rs) throws SQLException {
         return new MediaEntry(
@@ -25,34 +28,48 @@ public class MediaRepository implements IMediaRepository {
     }
 
     @Override
-    public void insert(MediaEntry entry) throws SQLException {
+    public void insert(Object entity) throws SQLException {
+        MediaEntry entry = (MediaEntry) entity;
         String sql = """
                 INSERT INTO media_entries
                 (id, owner_id, title, description, media_type, release_year, genres, age_restriction)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """;
+
         try (Connection c = Database.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
+
             ps.setObject(1, entry.getId());
             ps.setObject(2, entry.getOwnerId());
             ps.setString(3, entry.getTitle());
             ps.setString(4, entry.getDescription());
             ps.setString(5, entry.getMediaType());
-            if (entry.getReleaseYear() == null) ps.setNull(6, Types.INTEGER);
-            else ps.setInt(6, entry.getReleaseYear());
+
+            if (entry.getReleaseYear() == null)
+                ps.setNull(6, Types.INTEGER);
+            else
+                ps.setInt(6, entry.getReleaseYear());
+
             ps.setString(7, entry.getGenres());
-            if (entry.getAgeRestriction() == null) ps.setNull(8, Types.INTEGER);
-            else ps.setInt(8, entry.getAgeRestriction());
+
+            if (entry.getAgeRestriction() == null)
+                ps.setNull(8, Types.INTEGER);
+            else
+                ps.setInt(8, entry.getAgeRestriction());
+
             ps.executeUpdate();
         }
     }
 
     @Override
-    public Optional<MediaEntry> findById(UUID id) throws SQLException {
+    public Optional<?> findById(UUID id) throws SQLException {
         String sql = "SELECT * FROM media_entries WHERE id = ?";
+
         try (Connection c = Database.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
+
             ps.setObject(1, id);
+
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return Optional.of(mapRow(rs));
                 return Optional.empty();
@@ -61,35 +78,8 @@ public class MediaRepository implements IMediaRepository {
     }
 
     @Override
-    public List<MediaEntry> list(String query) throws SQLException {
-        String sql = """
-                SELECT * FROM media_entries
-                WHERE ? IS NULL
-                   OR title ILIKE '%' || ? || '%'
-                   OR description ILIKE '%' || ? || '%'
-                ORDER BY title
-                """;
-        List<MediaEntry> out = new ArrayList<>();
-        try (Connection c = Database.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
-            if (query == null || query.isBlank()) {
-                ps.setNull(1, Types.VARCHAR);
-                ps.setNull(2, Types.VARCHAR);
-                ps.setNull(3, Types.VARCHAR);
-            } else {
-                ps.setString(1, query);
-                ps.setString(2, query);
-                ps.setString(3, query);
-            }
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) out.add(mapRow(rs));
-            }
-        }
-        return out;
-    }
-
-    @Override
-    public void update(MediaEntry entry) throws SQLException {
+    public void update(Object entity) throws SQLException {
+        MediaEntry entry = (MediaEntry) entity;
         String sql = """
                 UPDATE media_entries SET
                     title = ?,
@@ -100,37 +90,119 @@ public class MediaRepository implements IMediaRepository {
                     age_restriction = ?
                 WHERE id = ?
                 """;
+
         try (Connection c = Database.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
+
             ps.setString(1, entry.getTitle());
             ps.setString(2, entry.getDescription());
             ps.setString(3, entry.getMediaType());
-            if (entry.getReleaseYear() == null) ps.setNull(4, Types.INTEGER);
-            else ps.setInt(4, entry.getReleaseYear());
+
+            if (entry.getReleaseYear() == null)
+                ps.setNull(4, Types.INTEGER);
+            else
+                ps.setInt(4, entry.getReleaseYear());
+
             ps.setString(5, entry.getGenres());
-            if (entry.getAgeRestriction() == null) ps.setNull(6, Types.INTEGER);
-            else ps.setInt(6, entry.getAgeRestriction());
+
+            if (entry.getAgeRestriction() == null)
+                ps.setNull(6, Types.INTEGER);
+            else
+                ps.setInt(6, entry.getAgeRestriction());
+
             ps.setObject(7, entry.getId());
+
             ps.executeUpdate();
         }
     }
 
     @Override
-    public void delete(UUID mediaId) throws SQLException {
+    public void delete(UUID id) throws SQLException {
         String sql = "DELETE FROM media_entries WHERE id = ?";
+
         try (Connection c = Database.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setObject(1, mediaId);
+
+            ps.setObject(1, id);
             ps.executeUpdate();
         }
     }
 
     @Override
+    public List<?> listAll() throws SQLException {
+        return listByQuery(null);
+    }
+
+    @Override
+    public List<?> listByQuery(String query) throws SQLException {
+        String sql = """
+                SELECT * FROM media_entries
+                WHERE ? IS NULL
+                   OR title ILIKE '%' || ? || '%'
+                   OR description ILIKE '%' || ? || '%'
+                ORDER BY title
+                """;
+
+        List<MediaEntry> out = new ArrayList<>();
+
+        try (Connection c = Database.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+
+            if (query == null || query.isBlank()) {
+                ps.setNull(1, Types.VARCHAR);
+                ps.setNull(2, Types.VARCHAR);
+                ps.setNull(3, Types.VARCHAR);
+            } else {
+                ps.setString(1, query);
+                ps.setString(2, query);
+                ps.setString(3, query);
+            }
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) out.add(mapRow(rs));
+            }
+        }
+
+        return out;
+    }
+
+    @Override
+    public List<?> listByRelatedId(UUID relatedId) throws SQLException {
+        // Used for listing media by owner
+        String sql = "SELECT * FROM media_entries WHERE owner_id = ? ORDER BY title";
+
+        List<MediaEntry> media = new ArrayList<>();
+
+        try (Connection c = Database.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+
+            ps.setObject(1, relatedId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    media.add(mapRow(rs));
+                }
+            }
+        }
+
+        return media;
+    }
+
+    @Override
+    public Optional<?> findByString(String identifier) throws SQLException {
+        throw new UnsupportedOperationException("findByString not supported for MediaEntry");
+    }
+
+    // === HELPER METHODS (not from interface) ===
+
     public double averageScore(UUID mediaId) throws SQLException {
         String sql = "SELECT AVG(stars) AS avg_score FROM ratings WHERE media_id = ?";
+
         try (Connection c = Database.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
+
             ps.setObject(1, mediaId);
+
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getDouble("avg_score");
                 return 0.0;

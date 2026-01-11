@@ -2,11 +2,9 @@ package at.fhtw.mrp.http;
 
 import at.fhtw.mrp.model.MediaEntry;
 import at.fhtw.mrp.model.User;
-import at.fhtw.mrp.repo.IUserRepository;
-import at.fhtw.mrp.service.IAuthService;
-import at.fhtw.mrp.service.IMediaService;
-import at.fhtw.mrp.service.IRatingService;
-import at.fhtw.mrp.util.TokenService;
+import at.fhtw.mrp.service.AuthService;
+import at.fhtw.mrp.service.MediaService;
+import at.fhtw.mrp.service.RatingService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -15,16 +13,29 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.*;
 
+/**
+ * HTTP Handler for Media endpoints
+ *
+ * Endpoints:
+ * - GET    /api/media
+ * - GET    /api/media?query=text
+ * - POST   /api/media
+ * - GET    /api/media/{id}
+ * - PUT    /api/media/{id}
+ * - DELETE /api/media/{id}
+ * - POST   /api/media/{id}/ratings
+ * - GET    /api/media/{id}/ratings
+ */
 public class MediaHandler implements HttpHandler {
 
     private final ObjectMapper mapper = new ObjectMapper();
-    private final IMediaService mediaService;
-    private final IRatingService ratingService;
-    private final IAuthService authService;
+    private final MediaService mediaService;
+    private final RatingService ratingService;
+    private final AuthService authService;
 
-    public MediaHandler(IMediaService mediaService,
-                        IRatingService ratingService,
-                        IAuthService authService) {
+    public MediaHandler(MediaService mediaService,
+                        RatingService ratingService,
+                        AuthService authService) {
         this.mediaService = mediaService;
         this.ratingService = ratingService;
         this.authService = authService;
@@ -161,8 +172,6 @@ public class MediaHandler implements HttpHandler {
             throw new SecurityException("Unauthorized");
         }
 
-        // For now, we'll use a simple approach - you may need to adjust this
-        // based on your actual authentication implementation
         String token = authHeader.substring("Bearer ".length()).trim();
 
         // Parse userId from token (assuming format: "userId;username;secret")
@@ -175,7 +184,6 @@ public class MediaHandler implements HttpHandler {
         String username = parts[1];
 
         // Create a minimal User object for authorization purposes
-        // In a real implementation, you'd fetch this from the repository
         return new User(userId, username, null, token);
     }
 

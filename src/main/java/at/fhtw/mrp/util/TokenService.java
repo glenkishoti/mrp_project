@@ -1,27 +1,33 @@
 package at.fhtw.mrp.util;
 
 import at.fhtw.mrp.model.User;
-import at.fhtw.mrp.repo.IUserRepository;
+import at.fhtw.mrp.repo.UserRepository;
 
 import java.sql.SQLException;
 import java.util.Optional;
 import java.util.UUID;
 
+
+//Token service for authentication and token generation
+
 public class TokenService {
 
-    // NEW METHOD (expected by AuthService)
+
+    // Issue a token for a user ID (when username not available)
+
     public static String issueToken(UUID userId) {
-        // username is not available here → use dummy
         return generateToken(userId, "unknown");
     }
 
-    // ORIGINAL secure token generator
+    //Generate a secure token with userId, username, and secret
+
     public static String generateToken(UUID userId, String username) {
         String secret = UUID.randomUUID().toString();
         return userId + ";" + username + ";" + secret;
     }
 
-    // ORIGINAL parser
+    //Parse a token string into its components
+
     private static Optional<ParsedToken> parse(String token) {
         if (token == null || !token.contains(";"))
             return Optional.empty();
@@ -39,8 +45,13 @@ public class TokenService {
         }
     }
 
-    // ORIGINAL authenticate logic
-    public static Optional<User> authenticate(String authHeader, IUserRepository users)
+    /**
+     * Authenticate a user based on Authorization header
+     * @param authHeader - the Authorization header value (should start with "Bearer ")
+     * @param userRepo - repository to look up user
+     * @return Optional<User> if authentication successful, empty otherwise
+     */
+    public static Optional<User> authenticate(String authHeader, UserRepository userRepo)
             throws SQLException {
 
         if (authHeader == null || !authHeader.startsWith("Bearer "))
@@ -51,15 +62,22 @@ public class TokenService {
         Optional<ParsedToken> parsed = parse(rawToken);
         if (parsed.isEmpty()) return Optional.empty();
 
-        Optional<User> user = users.findById(parsed.get().userId());
-        if (user.isEmpty()) return Optional.empty();
+        // Get user from repository - need to cast Optional<?> to Optional<User>
+        Optional<?> optionalUser = userRepo.findById(parsed.get().userId());
+        if (optionalUser.isEmpty()) return Optional.empty();
 
-        if (rawToken.equals(user.get().getToken()))
-            return user;
+        // Cast the user object
+        User user = (User) optionalUser.get();
+
+        // Verify token matches the one stored in database
+        if (rawToken.equals(user.getToken()))
+            return Optional.of(user);
 
         return Optional.empty();
     }
 
-    // internal data holder
+    /**
+     * Internal data holder for parsed token components
+     */
     private record ParsedToken(UUID userId, String username) {}
 }

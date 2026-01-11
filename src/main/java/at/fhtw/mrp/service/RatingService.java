@@ -1,22 +1,81 @@
 package at.fhtw.mrp.service;
 
 import at.fhtw.mrp.model.Rating;
-import at.fhtw.mrp.repo.IRatingRepository;
+import at.fhtw.mrp.repo.RatingRepository;
 
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
-public class RatingService implements IRatingService {
+//Service implementation for Rating business logic
 
-    private final IRatingRepository ratings;
+public class RatingService implements IService {
 
-    public RatingService(IRatingRepository ratings) {
+    private final RatingRepository ratings;
+
+    public RatingService(RatingRepository ratings) {
         this.ratings = ratings;
     }
 
     @Override
+    public UUID create(UUID userId, Map<String, Object> data) throws SQLException {
+        UUID mediaId = UUID.fromString((String) data.get("mediaId"));
+        int stars = ((Number) data.get("stars")).intValue();
+        String comment = (String) data.get("comment");
+
+        if (stars < 1 || stars > 5) {
+            throw new IllegalArgumentException("stars must be 1–5");
+        }
+
+        UUID id = UUID.randomUUID();
+        Rating rating = new Rating(id, mediaId, userId, stars, comment);
+        ratings.insert(rating);
+        return id;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Optional<Rating> get(UUID id) throws SQLException {
+        return (Optional<Rating>) ratings.findById(id);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public List<Rating> list(String query) throws SQLException {
+        return (List<Rating>) ratings.listAll();
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public List<Rating> listByUser(UUID userId) throws SQLException {
+        return (List<Rating>) ratings.listByRelatedId(userId);
+    }
+
+    @Override
+    public void update(UUID id, UUID userId, Map<String, Object> data) throws SQLException {
+        throw new UnsupportedOperationException("Ratings cannot be updated, delete and recreate instead");
+    }
+
+    @Override
+    public void delete(UUID id, UUID userId) throws SQLException {
+        // Verify ownership
+        Optional<?> ratingOpt = ratings.findById(id);
+        if (ratingOpt.isEmpty()) {
+            throw new IllegalArgumentException("Rating not found");
+        }
+
+        Rating rating = (Rating) ratingOpt.get();
+        if (!rating.getUserId().equals(userId)) {
+            throw new SecurityException("You can only delete your own ratings");
+        }
+
+        ratings.delete(id);
+    }
+
+    // HELPER METHODS (not from IService interface)
+
     public UUID create(UUID mediaId, UUID userId, int stars, String comment) throws SQLException {
         if (stars < 1 || stars > 5) {
             throw new IllegalArgumentException("stars must be 1–5");
@@ -27,41 +86,23 @@ public class RatingService implements IRatingService {
         return id;
     }
 
-    @Override
     public List<Rating> listByMedia(UUID mediaId) throws SQLException {
         return ratings.listByMedia(mediaId);
     }
 
-    @Override
-    public List<Rating> listByUser(UUID userId) throws SQLException {
-        return ratings.listByUser(userId);
-    }
-
-    @Override
     public Optional<Rating> findById(UUID ratingId) throws SQLException {
-        return ratings.findById(ratingId);
+        return (Optional<Rating>) ratings.findById(ratingId);
+    }
+
+    // UNUSED METHODS FROM ISERVICE (not needed in RatingService)
+
+    @Override
+    public String authenticate(String username, String password) throws SQLException {
+        throw new UnsupportedOperationException("Not applicable for RatingService");
     }
 
     @Override
-    public void delete(UUID ratingId, UUID userId) throws SQLException {
-        // Verify ownership
-        Optional<Rating> ratingOpt = ratings.findById(ratingId);
-        if (ratingOpt.isEmpty()) {
-            throw new IllegalArgumentException("Rating not found");
-        }
-
-        Rating rating = ratingOpt.get();
-        if (!rating.getUserId().equals(userId)) {
-            throw new SecurityException("You can only delete your own ratings");
-        }
-
-        // Delete from repository
-        deleteRatingById(ratingId);
-    }
-
-    private void deleteRatingById(UUID ratingId) throws SQLException {
-        // This calls the repository delete method
-        // You'll need to add this to IRatingRepository if not present
-        ratings.delete(ratingId);
+    public UUID register(String username, String password) throws SQLException {
+        throw new UnsupportedOperationException("Not applicable for RatingService");
     }
 }

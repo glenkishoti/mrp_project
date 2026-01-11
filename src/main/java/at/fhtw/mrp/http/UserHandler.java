@@ -1,8 +1,8 @@
 package at.fhtw.mrp.http;
 
 import at.fhtw.mrp.model.User;
-import at.fhtw.mrp.repo.IUserRepository;
-import at.fhtw.mrp.service.IAuthService;
+import at.fhtw.mrp.repo.UserRepository;
+import at.fhtw.mrp.service.AuthService;
 import at.fhtw.mrp.util.TokenService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
@@ -14,13 +14,21 @@ import java.sql.SQLException;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * HTTP Handler for User endpoints
+ *
+ * Endpoints:
+ * - POST /api/users/register
+ * - POST /api/users/login
+ * - GET  /api/users/{username}/profile
+ */
 public class UserHandler implements HttpHandler {
 
     private final ObjectMapper mapper = new ObjectMapper();
-    private final IAuthService authService;
-    private final IUserRepository userRepo;
+    private final AuthService authService;
+    private final UserRepository userRepo;
 
-    public UserHandler(IAuthService authService, IUserRepository userRepo) {
+    public UserHandler(AuthService authService, UserRepository userRepo) {
         this.authService = authService;
         this.userRepo = userRepo;
     }
@@ -53,7 +61,7 @@ public class UserHandler implements HttpHandler {
                 String username = (String) body.get("Username");
                 String password = (String) body.get("Password");
 
-                String token = authService.login(username, password);
+                String token = authService.authenticate(username, password);
                 send(ex, 200, Map.of("token", token));
                 return;
             }
